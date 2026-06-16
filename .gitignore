@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+pkg/node_modules/
+
+# Secrets
+.env
+pkg/.env
+*.pem
+
+# Generated media
+output/
+pkg/public/_audio-cache/
+
+# OS / editor
+.DS_Store
+*.log
+
+# Remotion / build caches
+.remotion/

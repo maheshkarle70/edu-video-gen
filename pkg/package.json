@@ -1,0 +1,23 @@
+{
+  "name": "edu-video-gen",
+  "version": "1.0.0",
+  "description": "AI educational video generator — Claude + ElevenLabs + Remotion",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "preview": "npx remotion studio src/remotion/index.jsx"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.475",
+    "@remotion/media-utils": "^4.0.475",
+    "@remotion/renderer": "^4.0.475",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.475"
+  },
+  "remotion": {
+    "entryPoint": "src/remotion/index.jsx"
+  }
+}
