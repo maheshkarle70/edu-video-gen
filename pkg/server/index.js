@@ -6,7 +6,7 @@ import path            from 'path';
 import { execSync, exec } from 'child_process';
 import { fileURLToPath }  from 'url';
 import { generateScript } from './claude.js';
-import { generateAudio }  from './elevenlabs.js';
+import { generateAudio, searchVoices, getVoice } from './elevenlabs.js';
 import { renderVideo }    from './render.js';
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
@@ -51,19 +51,66 @@ app.get('/config', (_req, res) => {
 });
 
 // ── /voices ───────────────────────────────────────────────────
+const STATIC_VOICES = [
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam',   desc: 'Deep, authoritative — great for history/science' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni',  desc: 'Warm, conversational' },
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh',   desc: 'Confident, clear' },
+  { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam',    desc: 'Calm, measured' },
+  { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', desc: 'British, professional' },
+  { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold', desc: 'Strong, powerful' },
+  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli',   desc: 'Friendly female voice' },
+  { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Gigi',   desc: 'Energetic female voice' },
+  { id: 'BTNeCNdXniCSbjEac5vd', name: 'Amit Gupta — Explosive', desc: 'Youthful, energetic delivery' },
+  { id: 'Sxk6njaoa7XLsAFT7WcN', name: 'Amit Gupta — Warm', desc: 'Sympathetic, empathetic tone' },
+];
+
 app.get('/voices', (_req, res) => {
-  res.json([
-    { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam',   desc: 'Deep, authoritative — great for history/science' },
-    { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni',  desc: 'Warm, conversational' },
-    { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh',   desc: 'Confident, clear' },
-    { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam',    desc: 'Calm, measured' },
-    { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', desc: 'British, professional' },
-    { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold', desc: 'Strong, powerful' },
-    { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli',   desc: 'Friendly female voice' },
-    { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Gigi',   desc: 'Energetic female voice' },
-    { id: 'BTNeCNdXniCSbjEac5vd', name: 'Amit Gupta — Explosive', desc: 'Youthful, energetic delivery' },
-    { id: 'Sxk6njaoa7XLsAFT7WcN', name: 'Amit Gupta — Warm', desc: 'Sympathetic, empathetic tone' },
-  ]);
+  res.json(STATIC_VOICES);
+});
+
+app.get('/voices/search', async (req, res) => {
+  const apiKey = process.env.ELEVENLABS_API_KEY || req.headers['xi-api-key'] || '';
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.json([]);
+  if (!apiKey) return res.status(400).json({ error: 'No ElevenLabs API key — add ELEVENLABS_API_KEY to .env' });
+
+  try {
+    const voices = await searchVoices({ apiKey, query: q });
+    res.json(voices);
+  } catch (e) {
+    console.error('[Voices] Search failed:', e.message);
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.get('/voices/:voiceId', async (req, res) => {
+  const apiKey = process.env.ELEVENLABS_API_KEY || req.headers['xi-api-key'] || '';
+  if (!apiKey) return res.status(400).json({ error: 'No ElevenLabs API key' });
+
+  try {
+    const voice = await getVoice({ apiKey, voiceId: req.params.voiceId });
+    res.json(voice);
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+const VOICE_PREVIEW_TEXT = 'Hello! This is a quick preview of how this voice will sound in your educational video. Clear, engaging, and ready to teach.';
+
+app.post('/voices/preview', async (req, res) => {
+  const apiKey = process.env.ELEVENLABS_API_KEY || req.body.elevenKey || '';
+  const id = req.body.voiceId || process.env.ELEVENLABS_VOICE_ID;
+  if (!apiKey) return res.status(400).json({ error: 'No ElevenLabs API key' });
+  if (!id) return res.status(400).json({ error: 'No voice selected' });
+
+  const previewPath = path.join(OUTPUT_DIR, `preview_${id}.mp3`);
+  try {
+    await generateAudio({ apiKey, voiceId: id, text: VOICE_PREVIEW_TEXT, outputPath: previewPath });
+    res.json({ audioUrl: `/output/preview_${id}.mp3` });
+  } catch (e) {
+    console.error('[Voices] Preview failed:', e.message);
+    res.status(502).json({ error: e.message });
+  }
 });
 
 // ── /proxy/claude  (forwards Claude API calls server-side) ────
