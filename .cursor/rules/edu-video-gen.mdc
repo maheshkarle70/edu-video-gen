@@ -1,0 +1,29 @@
+---
+description: Edu Video Gen project architecture, pipeline, and conventions
+alwaysApply: true
+---
+
+# Edu Video Gen
+
+Read **`docs/PROJECT_CONTEXT.md`** for full architecture, API routes, file map, bugs fixed, and TODOs.
+
+## Quick facts
+
+- **Run:** `cd pkg && npm start` → `pkg/server/index.js`
+- **Env:** `pkg/.env` (never commit)
+- **Modes:** Short (6-scene one-click) | Long (Plan → Script → Media → Preview → Render)
+- **Long-form testing:** `MAX_LONG_SUBTOPICS = 1` in `pkg/public/index.html`
+- **Remotion:** pinned 4.0.484; components in `src/remotion/`; preview bundle `pkg/public/preview-player.js` (gitignored, rebuilt via `pkg/server/build-preview.js` on start)
+- **Media:** uploads at `/uploads/`; `.mov` auto-transcodes to `.mp4`; HTML mockups use inline `ScrollingHtmlFrame`, not iframe
+- **Preview vs render:** `timeline.js` caps preview durations (hook 8s, demo 16s, summary 18s); full render uses full narration
+- **After changes:** restart server for backend; rebuild preview bundle after Remotion JSX changes
+
+## Key paths
+
+| Area | Path |
+|------|------|
+| UI | `pkg/public/index.html` |
+| Server | `pkg/server/*.js` |
+| Remotion | `src/remotion/` |
+| Assemble pipeline | `pkg/server/assemble.js` |
+| Upload/transcode | `pkg/server/upload.js`, `transcode.js` |
