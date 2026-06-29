@@ -12,6 +12,34 @@ const PUBLIC_DIR = path.join(__dirname, '../public');
 
 let cachedBundle = null;
 
+function stageMediaFiles(scenes, bundleDir) {
+  const cacheId = Date.now().toString();
+  const cacheDir = path.join(bundleDir, 'public', '_media-cache', cacheId);
+  fs.mkdirSync(cacheDir, { recursive: true });
+
+  const staged = scenes.map((s, i) => {
+    const file = s.media?.filePath || s.media?.file;
+    if (!file || !fs.existsSync(file)) return s;
+    const ext = path.extname(file)
+      || (s.media.type === 'video' ? '.mp4' : s.media.type === 'html' ? '.html' : '.png');
+    const dest = path.join(cacheDir, `scene_${i}${ext}`);
+    fs.copyFileSync(file, dest);
+    return {
+      ...s,
+      media: {
+        ...s.media,
+        file: `_media-cache/${cacheId}/scene_${i}${ext}`,
+      },
+    };
+  });
+
+  const cleanup = () => {
+    try { fs.rmSync(path.join(bundleDir, 'public', '_media-cache', cacheId), { recursive: true, force: true }); } catch {}
+  };
+
+  return { scenes: staged, cleanup: cleanup };
+}
+
 function stageAudioFiles(scenes, bundleDir) {
   const cacheId = Date.now().toString();
   const cacheDir = path.join(bundleDir, 'public', '_audio-cache', cacheId);
@@ -19,9 +47,10 @@ function stageAudioFiles(scenes, bundleDir) {
 
   const staged = scenes.map((s, i) => {
     if (!s.audioFile || !fs.existsSync(s.audioFile)) return s;
-    const dest = path.join(cacheDir, `scene_${i}.mp3`);
+    const ext = path.extname(s.audioFile) || '.mp3';
+    const dest = path.join(cacheDir, `scene_${i}${ext}`);
     fs.copyFileSync(s.audioFile, dest);
-    return { ...s, audioFile: `_audio-cache/${cacheId}/scene_${i}.mp3` };
+    return { ...s, audioFile: `_audio-cache/${cacheId}/scene_${i}${ext}` };
   });
 
   const cleanup = () => {
@@ -36,7 +65,9 @@ function normalizeProps(props, bundleDir) {
     ...s,
     audioDuration: s.audioDuration || s.durationSec || 5,
   }));
-  const { scenes: staged, cleanup } = stageAudioFiles(scenes, bundleDir);
+  const { scenes: withMedia, cleanup: mediaCleanup } = stageMediaFiles(scenes, bundleDir);
+  const { scenes: staged, cleanup: audioCleanup } = stageAudioFiles(withMedia, bundleDir);
+  const cleanup = () => { mediaCleanup(); audioCleanup(); };
   return { props: { ...props, scenes: staged }, cleanup };
 }
 

@@ -8,14 +8,18 @@
     "preview": "npx remotion studio src/remotion/index.jsx"
   },
   "dependencies": {
-    "@remotion/bundler": "^4.0.475",
-    "@remotion/media-utils": "^4.0.475",
-    "@remotion/renderer": "^4.0.475",
+    "@remotion/bundler": "4.0.484",
+    "@remotion/media-utils": "4.0.484",
+    "@remotion/player": "4.0.484",
+    "@remotion/renderer": "4.0.484",
     "dotenv": "^16.6.1",
+    "esbuild": "^0.28.1",
     "express": "^4.22.2",
+    "multer": "^2.2.0",
+    "puppeteer": "^24.10.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "remotion": "^4.0.475"
+    "remotion": "4.0.484"
   },
   "remotion": {
     "entryPoint": "src/remotion/index.jsx"

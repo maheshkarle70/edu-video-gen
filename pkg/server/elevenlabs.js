@@ -1,6 +1,7 @@
 // server/elevenlabs.js
 import https from 'https';
 import fs    from 'fs';
+import { alignmentToWordTimings, estimateWordTimings } from './wordTimings.js';
 
 function formatVoice(v) {
   const labels = v.labels || {};
@@ -48,12 +49,73 @@ export async function getVoice({ apiKey, voiceId }) {
   return formatVoice(data);
 }
 
+const VOICE_SETTINGS = {
+  stability: 0.52,
+  similarity_boost: 0.82,
+  style: 0.25,
+  use_speaker_boost: true,
+};
+
+function postElevenLabs({ apiKey, voiceId, path, body, accept }) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const req = https.request({
+      hostname: 'api.elevenlabs.io',
+      path: `/v1/text-to-speech/${voiceId}${path}`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': apiKey,
+        Accept: accept,
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        if (res.statusCode !== 200) {
+          reject(new Error(`ElevenLabs ${res.statusCode}: ${buf.toString().slice(0, 200)}`));
+          return;
+        }
+        resolve(buf);
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+export async function generateAudioWithTimestamps({ apiKey, voiceId, text, outputPath }) {
+  try {
+    const buf = await postElevenLabs({
+      apiKey,
+      voiceId,
+      path: '/with-timestamps',
+      accept: 'application/json',
+      body: { text, model_id: 'eleven_multilingual_v2', voice_settings: VOICE_SETTINGS },
+    });
+
+    const data = JSON.parse(buf.toString());
+    const audio = Buffer.from(data.audio_base64, 'base64');
+    fs.writeFileSync(outputPath, audio);
+
+    const wordTimings = alignmentToWordTimings(text, data.alignment);
+    return { outputPath, wordTimings, characters: text.length };
+  } catch (e) {
+    console.warn('[ElevenLabs] Timestamps unavailable, falling back:', e.message);
+    await generateAudio({ apiKey, voiceId, text, outputPath });
+    return { outputPath, wordTimings: null, characters: text.length };
+  }
+}
+
 export function generateAudio({ apiKey, voiceId, text, outputPath }) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
       text,
       model_id: 'eleven_multilingual_v2',
-      voice_settings: { stability: 0.52, similarity_boost: 0.82, style: 0.25, use_speaker_boost: true },
+      voice_settings: VOICE_SETTINGS,
     });
 
     const req = https.request({
@@ -75,7 +137,7 @@ export function generateAudio({ apiKey, voiceId, text, outputPath }) {
       }
       const file = fs.createWriteStream(outputPath);
       res.pipe(file);
-      file.on('finish', () => { file.close(); resolve(outputPath); });
+      file.on('finish', () => { file.close(); resolve({ outputPath, characters: text.length }); });
       file.on('error',  reject);
     });
 

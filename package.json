@@ -4,7 +4,7 @@
   "description": "AI educational video generator — Claude + ElevenLabs + Remotion",
   "type": "module",
   "scripts": {
-    "start": "node server/index.js",
+    "start": "node pkg/server/index.js",
     "preview": "npx remotion studio src/remotion/index.jsx"
   },
   "dependencies": {

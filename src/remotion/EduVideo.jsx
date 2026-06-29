@@ -1,6 +1,4 @@
 // src/remotion/EduVideo.jsx
-// Master component — orchestrates all scenes on a single timeline
-
 import {
   AbsoluteFill,
   Audio,
@@ -8,9 +6,7 @@ import {
   staticFile,
   useCurrentFrame,
   useVideoConfig,
-  spring,
   interpolate,
-  Easing,
 } from 'remotion';
 import { HookScene } from './scenes/HookScene';
 import { ConceptScene } from './scenes/ConceptScene';
@@ -18,8 +14,12 @@ import { FactScene } from './scenes/FactScene';
 import { AnalogyScene } from './scenes/AnalogyScene';
 import { QuizScene } from './scenes/QuizScene';
 import { SummaryScene } from './scenes/SummaryScene';
+import { SectionScene } from './scenes/SectionScene';
+import { DemoScene } from './scenes/DemoScene';
 import { ProgressBar } from './components/ProgressBar';
-import { SceneTransition } from './components/SceneTransition';
+import { KaraokeCaptions } from './components/KaraokeCaptions';
+import { BackgroundMusic, buildVoiceRanges } from './components/BackgroundMusic';
+import { sceneDurationFrames } from './utils/timeline';
 
 const SCENE_COMPONENTS = {
   hook: HookScene,
@@ -28,6 +28,8 @@ const SCENE_COMPONENTS = {
   analogy: AnalogyScene,
   quiz: QuizScene,
   summary: SummaryScene,
+  section: SectionScene,
+  demo: DemoScene,
 };
 
 function audioSrc(file) {
@@ -36,27 +38,30 @@ function audioSrc(file) {
   return staticFile(file);
 }
 
-export const EduVideo = ({ topic, scenes, accentColor = '#7c5cfc' }) => {
+export const EduVideo = ({ topic, scenes, accentColor = '#7c5cfc', hashtag }) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames, width, height } = useVideoConfig();
+  const { fps } = useVideoConfig();
 
-  // Build scene timeline: each scene starts after the previous ends
-  const TRANSITION_FRAMES = fps * 0.5; // 0.5s transition between scenes
+  const TRANSITION_FRAMES = Math.round(fps * 0.15);
   let cursor = 0;
   const timeline = scenes.map((scene) => {
-    const durationFrames = Math.ceil((scene.audioDuration || 5) * fps) + TRANSITION_FRAMES;
-    const entry = { ...scene, startFrame: cursor, durationFrames };
+    const durationFrames = sceneDurationFrames(scene, fps);
+    const audioFrames = durationFrames - TRANSITION_FRAMES;
+    const entry = { ...scene, startFrame: cursor, durationFrames, audioFrames };
     cursor += durationFrames;
     return entry;
   });
 
   const totalFrames = cursor;
   const progress = frame / totalFrames;
+  const voiceRanges = buildVoiceRanges(scenes, fps);
+  const tag = hashtag || `#${(topic || 'Learn').replace(/\s+/g, '')}`;
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000', fontFamily: 'system-ui, sans-serif' }}>
 
-      {/* ── Scenes ── */}
+      <BackgroundMusic voiceRanges={voiceRanges} />
+
       {timeline.map((scene, idx) => {
         const SceneComp = SCENE_COMPONENTS[scene.type] || ConceptScene;
         return (
@@ -65,34 +70,31 @@ export const EduVideo = ({ topic, scenes, accentColor = '#7c5cfc' }) => {
             from={scene.startFrame}
             durationInFrames={scene.durationFrames}
           >
-            {/* Scene audio */}
             {scene.audioFile && (
               <Audio src={audioSrc(scene.audioFile)} />
             )}
 
-            {/* Scene visual */}
             <SceneComp
               scene={scene}
               accentColor={accentColor}
+              topic={topic}
+              hashtag={tag}
               sceneDuration={scene.durationFrames}
               isLast={idx === timeline.length - 1}
             />
 
-            {/* Flash transition at end of each scene */}
-            {idx < timeline.length - 1 && (
-              <SceneTransition
-                totalFrames={scene.durationFrames}
-                accentColor={accentColor}
-              />
-            )}
+            <KaraokeCaptions
+              wordTimings={scene.wordTimings}
+              narration={scene.narration}
+              accentColor={accentColor}
+              hidden={scene.type === 'summary'}
+            />
           </Sequence>
         );
       })}
 
-      {/* ── Progress bar (always on top) ── */}
       <ProgressBar progress={progress} accentColor={accentColor} />
 
-      {/* ── Topic watermark ── */}
       <AbsoluteFill style={{ pointerEvents: 'none' }}>
         <div style={{
           position: 'absolute',
@@ -110,7 +112,6 @@ export const EduVideo = ({ topic, scenes, accentColor = '#7c5cfc' }) => {
   );
 };
 
-// ── Topic tag at top ─────────────────────────────────────────────
 const TopicTag = ({ topic, accentColor }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();

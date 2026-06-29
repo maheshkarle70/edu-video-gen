@@ -29,16 +29,16 @@ https://nodejs.org
 
 ### 2. Install dependencies
 ```bash
-npm install
+cd pkg && npm install
 ```
-This installs Remotion, Express, and all dependencies.
-Remotion will also download a Chromium browser (~170MB) on first run.
+This installs Remotion, Express, and all dependencies in `pkg/`.
+Remotion will also download a Chromium browser (~170MB) on first render.
 
 ### 3. Configure .env
 ```bash
-cp .env.example .env
+cp pkg/.env.example pkg/.env   # or create pkg/.env manually
 ```
-Edit `.env` and fill in your keys:
+Edit **`pkg/.env`** and fill in your keys:
 ```
 ANTHROPIC_API_KEY=sk-ant-api03-...
 ELEVENLABS_API_KEY=sk_...         # optional — video renders silent if blank
@@ -49,22 +49,39 @@ PORT=4000
 
 ### 4. Start the server
 ```bash
+cd pkg && npm install
+
 npm start
 ```
-Opens http://localhost:4000 automatically.
+From the repo root — runs `pkg/server/index.js` (the active app).
+
+Or from `pkg/` directly:
+```bash
+cd pkg && npm start
+```
 
 ---
 
 ## Using the app
 
+### Short video (~60s)
 1. Enter your topic (or pick from suggestions)
 2. Choose teaching style, language, accent color
-3. Click **Generate Educational Video**
+3. Click **Create Video**
 4. Watch the pipeline run in real time:
    - Claude writes 6 scenes with narration
    - ElevenLabs generates audio per scene
    - Remotion renders animated MP4
 5. Download your video
+
+### Long YouTube tutorial (8–10 min) — 4-step pipeline
+
+1. **Plan** — Agent 1 suggests subtopics → select sections  
+2. **Script** — Agent 2 (`POST /brief`) writes narration + upload instructions + sample prompts  
+3. **Media** — Upload screenshots / recordings per section  
+4. **Preview** — Remotion Player silent preview → **Approve & Render** (TTS + MP4)
+
+Short mode still uses one-click **Create Video**.
 
 ---
 

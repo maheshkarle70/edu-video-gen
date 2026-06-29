@@ -27,6 +27,30 @@ export const slideUp = (frame, startFrame = 0, offset = 60, durationFrames = 25)
     easing: Easing.out(Easing.cubic),
   });
 
+// Slide in from right
+export const slideInRight = (frame, startFrame = 0, offset = 80, durationFrames = 25) =>
+  interpolate(frame, [startFrame, startFrame + durationFrames], [offset, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+    easing: Easing.out(Easing.cubic),
+  });
+
+// 3D flip-in (degrees on X axis) — for cards
+export const flipIn = (frame, startFrame = 0, durationFrames = 28) => {
+  const progress = interpolate(frame, [startFrame, startFrame + durationFrames], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+    easing: Easing.out(Easing.cubic),
+  });
+  const rotateX = interpolate(progress, [0, 1], [72, 0]);
+  const opacity = interpolate(progress, [0, 0.35], [0, 1], { extrapolateRight: 'clamp' });
+  return { rotateX, opacity, progress };
+};
+
+// Pop-in scale for bullets — returns 0→1 spring value
+export const popIn = (frame, fps, delay = 0) =>
+  spring({ frame: frame - delay, fps, config: { damping: 11, stiffness: 200, mass: 0.55 } });
+
 // Slide in from left
 export const slideInLeft = (frame, startFrame = 0, offset = -80, durationFrames = 25) =>
   interpolate(frame, [startFrame, startFrame + durationFrames], [offset, 0], {

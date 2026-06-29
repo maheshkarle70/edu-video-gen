@@ -10,6 +10,7 @@ pkg/.env
 # Generated media
 output/
 pkg/public/_audio-cache/
+pkg/data/
 
 # OS / editor
 .DS_Store
@@ -17,3 +18,4 @@ pkg/public/_audio-cache/
 
 # Remotion / build caches
 .remotion/
+pkg/public/preview-player.js
