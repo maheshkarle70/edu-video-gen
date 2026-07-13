@@ -1,5 +1,6 @@
 // Low-volume background music bed, ducked during voiceover
 import { Audio, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { sceneDurationFrames, TRANSITION_SEC } from '../utils/timeline';
 
 export const BackgroundMusic = ({ voiceRanges, musicFile = 'music/bed.m4a' }) => {
   const frame = useCurrentFrame();
@@ -22,11 +23,13 @@ export const BackgroundMusic = ({ voiceRanges, musicFile = 'music/bed.m4a' }) =>
 };
 
 export function buildVoiceRanges(scenes, fps) {
-  const TRANSITION = Math.round(fps * 0.15);
+  // Reuses the exact per-scene layout from utils/timeline so ducking ranges
+  // can never drift from the composition's actual scene positions.
+  const TRANSITION = Math.round(fps * TRANSITION_SEC);
   let cursor = 0;
-  return scenes.map((scene) => {
-    const dur = Math.ceil((scene.audioDuration || scene.durationSec || 5) * fps) + TRANSITION;
-    const voiceEnd = cursor + Math.ceil((scene.audioDuration || scene.durationSec || 5) * fps);
+  return (scenes || []).map((scene) => {
+    const dur = sceneDurationFrames(scene, fps);
+    const voiceEnd = cursor + (dur - TRANSITION);
     const range = [cursor, voiceEnd];
     cursor += dur;
     return range;

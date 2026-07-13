@@ -3,6 +3,7 @@
 
 import { Composition, registerRoot } from 'remotion';
 import { EduVideo } from './EduVideo';
+import { totalDurationFrames } from './utils/timeline';
 
 export const RemotionRoot = () => {
   // Default props (used in Remotion Studio preview)
@@ -81,21 +82,21 @@ export const RemotionRoot = () => {
   };
 
   // Calculate total duration: sum of all scene audio durations + transitions
-  const totalSeconds = defaultProps.scenes.reduce((acc, s) => acc + (s.audioDuration || 5) + 1, 0);
   const fps = 30;
+  // Single source of truth — must match EduVideo's internal layout exactly.
+  const defaultDurationFrames = totalDurationFrames(defaultProps.scenes, fps);
 
   return (
     <Composition
       id="EduVideo"
       component={EduVideo}
-      durationInFrames={totalSeconds * fps}
+      durationInFrames={defaultDurationFrames}
       fps={fps}
       width={1080}
       height={1920}
       defaultProps={defaultProps}
       calculateMetadata={({ props }) => {
-        const total = props.scenes.reduce((acc, s) => acc + (s.audioDuration || 5) + 1, 0);
-        return { durationInFrames: Math.ceil(total * fps) };
+        return { durationInFrames: totalDurationFrames(props.scenes, fps) };
       }}
     />
   );

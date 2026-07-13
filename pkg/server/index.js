@@ -576,7 +576,9 @@ function getMediaDuration(filePath) {
 }
 
 function estimateDuration(text = '') {
-  return Math.max(Math.ceil(text.split(' ').length / 2.5), 4);
+  // Fallback only (no-TTS mode / TTS failure). Hindi/Hinglish TTS runs
+  // ~110–130 wpm ≈ 2 words/sec — 2.5 was tuned for English and cut scenes short.
+  return Math.max(Math.ceil(text.split(' ').length / 2.0), 4);
 }
 
 function generateSilence(outputPath, seconds) {

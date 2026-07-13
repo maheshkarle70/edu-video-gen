@@ -1,6 +1,7 @@
 // server/render.js — Remotion scene renderer (gradients, emoji, per-scene layouts)
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
+import { totalDurationFrames } from '../../src/remotion/utils/timeline.js';
 import { cpus } from 'os';
 import fs from 'fs';
 import path from 'path';
@@ -89,11 +90,12 @@ export async function renderVideo({ props, outputPath, width, height, fps, onPro
   const { props: inputProps, cleanup } = normalizeProps(props, bundleDir);
 
   try {
-    const totalSeconds = inputProps.scenes.reduce(
-      (acc, s) => acc + (s.audioDuration || 5) + 0.5,
-      0,
-    );
-    const durationInFrames = Math.ceil(totalSeconds * fps);
+    // Single source of truth: the same timeline math the composition uses
+    // (audio + TRANSITION_SEC per scene). Previously this summed +0.5s per
+    // scene while the composition laid out +0.15s — leaving a frozen tail
+    // of ~0.35s × sceneCount at the end of every render.
+    const durationInFrames = totalDurationFrames(inputProps.scenes, fps);
+    const totalSeconds = durationInFrames / fps;
 
     console.log(`[Render] ${inputProps.scenes.length} scenes → ${outputPath}`);
     console.log(`[Render] ${durationInFrames} frames @ ${fps}fps (${totalSeconds.toFixed(1)}s)`);

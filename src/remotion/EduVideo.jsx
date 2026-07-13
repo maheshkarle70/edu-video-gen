@@ -20,6 +20,9 @@ import { ProgressBar } from './components/ProgressBar';
 import { KaraokeCaptions } from './components/KaraokeCaptions';
 import { BackgroundMusic, buildVoiceRanges } from './components/BackgroundMusic';
 import { sceneDurationFrames } from './utils/timeline';
+import { loadDevanagariFont, FONT_STACK } from './utils/fonts';
+
+loadDevanagariFont();
 
 const SCENE_COMPONENTS = {
   hook: HookScene,
@@ -58,7 +61,7 @@ export const EduVideo = ({ topic, scenes, accentColor = '#7c5cfc', hashtag }) =>
   const tag = hashtag || `#${(topic || 'Learn').replace(/\s+/g, '')}`;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#000', fontFamily: 'system-ui, sans-serif' }}>
+    <AbsoluteFill style={{ backgroundColor: '#000', fontFamily: FONT_STACK }}>
 
       <BackgroundMusic voiceRanges={voiceRanges} />
 
