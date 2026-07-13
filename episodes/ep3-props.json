@@ -1,0 +1,128 @@
+{
+  "topic": "Claude API Fundamentals",
+  "hashtag": "#AIPadhai",
+  "accentColor": "#E86A17",
+  "format": { "width": 1920, "height": 1080, "fps": 30 },
+  "_readme": "EP3 — AI Padhai. Render via: node scripts/render-episode.js episodes/ep3-props.json out/ep3.mp4. Each scene: set audioFile to the ElevenLabs MP3 for that section (script: ep3_voiceover_script.md); audioDuration is ffprobed automatically. Scenes with audioFile=null render using durationSec. The two 'demo' scenes are your live-coding recordings — upload/point media.filePath at your screen recording.",
+  "scenes": [
+    {
+      "id": 1, "type": "aipTitle", "hideCaptions": true,
+      "eyebrow": "AI PADHAI  •  EPISODE 3",
+      "title": "Claude API Fundamentals",
+      "subtitle": "पहली API call से live coding तक — Hindi में",
+      "chips": [
+        { "big": "/v1/messages", "small": "एक ही endpoint — सब कुछ" },
+        { "big": "Streaming", "small": "real-time responses" },
+        { "big": "Live code", "small": "साथ-साथ बनाएँगे" }
+      ],
+      "narration": "नमस्कार दोस्तों! AI Padhai में आपका स्वागत है। पिछले दो episodes में हमने roadmap बनाया, courses चुने — आज theory खत्म, code शुरू! आज के video के end तक आप अपनी पहली Claude API call कर चुके होंगे। आपको चाहिए बस Python की basic knowledge और एक API key, जो console.anthropic.com से free बनती है। चलिए!",
+      "audioFile": null, "durationSec": 24
+    },
+    {
+      "id": 2, "type": "aipIconRows", "hideCaptions": true,
+      "title": "API का mental model",
+      "rows": [
+        { "emoji": "🔁", "heading": "Stateless", "sub": "हर call में पूरी conversation भेजनी होती है", "color": "#E86A17" },
+        { "emoji": "🔑", "heading": "सिर्फ़ 2 headers", "sub": "x-api-key + anthropic-version — बस", "color": "#2563EB" },
+        { "emoji": "🎯", "heading": "एक endpoint — /v1/messages", "sub": "chat, vision, tools — सब यहीं से", "color": "#0F9D58" }
+      ],
+      "narration": "Code लिखने से पहले तीस second में mental model समझ लो। आपका app एक HTTP POST request भेजता है — endpoint है slash v1 slash messages — और JSON response वापस आता है। तीन facts याद रखो। एक — API stateless है, पूरी conversation हर बार भेजनी पड़ती है। दो — सिर्फ़ दो headers चाहिए। तीन — यह एक endpoint सब कुछ करता है — chat, vision, tool use।",
+      "audioFile": null, "durationSec": 30
+    },
+    {
+      "id": 3, "type": "aipCode", "hideCaptions": true,
+      "title": "पहली API call — Python",
+      "lines": [
+        { "text": "import anthropic", "color": "#7FB5FF" },
+        { "text": "" },
+        { "text": "client = anthropic.Anthropic()" },
+        { "text": "" },
+        { "text": "msg = client.messages.create(" },
+        { "text": "    model=\"claude-sonnet-4-6\",", "color": "#8FD9A8" },
+        { "text": "    max_tokens=1024," },
+        { "text": "    messages=[{\"role\": \"user\"," },
+        { "text": "      \"content\": \"LLM kya hai?\"}]" },
+        { "text": ")" },
+        { "text": "" },
+        { "text": "print(msg.content[0].text)", "color": "#7FB5FF" }
+      ],
+      "notes": [
+        { "label": "model", "sub": "Sonnet सस्ता+तेज़, Opus सबसे smart", "color": "#E86A17" },
+        { "label": "max_tokens", "sub": "required! — response की max लंबाई", "color": "#2563EB" },
+        { "label": "messages[]", "sub": "conversation history — role + content", "color": "#0F9D58" },
+        { "label": "content[0].text", "sub": "response blocks की list आती है", "color": "#7C3AED" }
+      ],
+      "footer": "pip install anthropic  •  key: ANTHROPIC_API_KEY env variable में",
+      "narration": "अब वो moment — पहली API call। Screen पर पूरा program है, गिनकर आठ lines। Import anthropic, client बनाओ, और client dot messages dot create call करो। Model — Sonnet सीखने के लिए perfect। Max tokens — required field है, भूल गए तो error! Messages — conversation की list। और response में content zero dot text — क्योंकि response हमेशा blocks की list में आता है।",
+      "audioFile": null, "durationSec": 34
+    },
+    {
+      "id": 4, "type": "demo", "chapter": 1, "chapterTotal": 2,
+      "title": "LIVE — Setup और पहली Call",
+      "narration": "चलिए अब यह सब live करके देखते हैं — key बनाने से लेकर पहले response तक।",
+      "media": { "type": "video", "filePath": "REPLACE_WITH_YOUR_RECORDING/live_segment_1.mp4", "caption": "console.anthropic.com • pip install • first response" },
+      "audioFile": null, "durationSec": 150
+    },
+    {
+      "id": 5, "type": "aipComparison", "hideCaptions": true,
+      "title": "system vs messages",
+      "left": { "heading": "system", "color": "#2563EB", "tint": "#EEF3FE",
+        "items": ["Claude का role और rules — 'कौन बनना है'", "पूरी conversation पर लागू", "Top-level parameter — messages से अलग"] },
+      "right": { "heading": "messages", "color": "#0F9D58", "tint": "#EDF7F0",
+        "items": ["असली बातचीत — user/assistant turns", "हर turn: role + content", "Text, images, documents — content blocks में"] },
+      "footer": "Rule: personality और rules → system  |  data और सवाल → messages",
+      "narration": "Beginners का सबसे common confusion — system prompt कहाँ जाता है? वो messages array में नहीं जाता — अलग top-level parameter है। Rule simple है — Claude को कौन बनना है, वो system में। User का असली सवाल — messages में। Exam के scenario questions में यह distinction आता है।",
+      "audioFile": null, "durationSec": 28
+    },
+    {
+      "id": 6, "type": "aipIconRows", "hideCaptions": true,
+      "title": "Stateless: API कुछ याद नहीं रखता",
+      "rows": [
+        { "emoji": "1️⃣", "heading": "Call 1 — एक message", "sub": "[{user: \"नमस्ते!\"}]", "color": "#E86A17" },
+        { "emoji": "3️⃣", "heading": "Call 2 — तीन messages", "sub": "पुराना 'नमस्ते' + Claude का जवाब + नया सवाल", "color": "#2563EB" },
+        { "emoji": "5️⃣", "heading": "Call 3 — पाँच messages", "sub": "हर call के साथ array बड़ा — पूरी history हर बार", "color": "#0F9D58" }
+      ],
+      "narration": "अब वो concept जो exam में भी आता है और interviews में भी — API कुछ याद नहीं रखता। हर call के साथ messages array बड़ा होता जाता है, क्योंकि पूरी history हर बार भेजनी पड़ती है। ChatGPT जैसी memory API में built-in नहीं है — वो आपके app की ज़िम्मेदारी है। और इसीलिए token cost हर turn के साथ बढ़ता है।",
+      "audioFile": null, "durationSec": 30
+    },
+    {
+      "id": 7, "type": "aipIconRows", "hideCaptions": true,
+      "title": "4 power features",
+      "rows": [
+        { "emoji": "⚡", "heading": "Streaming", "sub": "response token-by-token — हर chat UI के लिए must", "color": "#2563EB" },
+        { "emoji": "🧠", "heading": "Extended Thinking", "sub": "मुश्किल reasoning पर Claude 'सोचता' है — accuracy बढ़ती है", "color": "#7C3AED" },
+        { "emoji": "📋", "heading": "Structured Outputs", "sub": "schema दो, guaranteed JSON लो — नए models पर prefill की जगह यही", "color": "#0F9D58" },
+        { "emoji": "👁️", "heading": "Vision", "sub": "images content blocks में — base64 या URL", "color": "#E86A17" }
+      ],
+      "narration": "Basic call आती है — अब चार features जो इसे production-grade बनाते हैं। Streaming — token by token response, chat UIs के लिए must। Extended thinking — मुश्किल reasoning पर accuracy बढ़ाता है। Structured outputs — schema दो और guaranteed valid JSON लो, और नए models पर पुराने prefill trick की जगह अब यही official तरीका है। और vision — images भेजो, Claude सब पढ़ता है।",
+      "audioFile": null, "durationSec": 32
+    },
+    {
+      "id": 8, "type": "demo", "chapter": 2, "chapterTotal": 2,
+      "title": "LIVE — Streaming + Structured JSON",
+      "narration": "चलिए अब streaming और structured outputs को live देखते हैं।",
+      "media": { "type": "video", "filePath": "REPLACE_WITH_YOUR_RECORDING/live_segment_2.mp4", "caption": "stream=True • schema-validated output • vision demo" },
+      "audioFile": null, "durationSec": 120
+    },
+    {
+      "id": 9, "type": "aipComparison", "hideCaptions": true,
+      "title": "2026 के common mistakes",
+      "left": { "heading": "यह करो", "color": "#0F9D58", "tint": "#EDF7F0",
+        "items": ["Behavior control prompting से", "Structured outputs — prefill का replacement", "Key हमेशा ANTHROPIC_API_KEY env में", "हर response पर stop_reason check"] },
+      "right": { "heading": "यह मत करो", "color": "#B91C1C", "tint": "#FBEFEF",
+        "items": ["temperature/top_p नए Opus models पर — 400 error!", "Prefill नए models पर — 400 error", "API key code में hardcode", "stop_reason ignore — truncated response miss"] },
+      "footer": "पुराने tutorials में temperature/prefill दिखेगा — 2026 के models पर वह टूटता है!",
+      "narration": "अब सबसे valuable slide — क्योंकि internet के ज़्यादातर tutorials 2025 के हैं और 2026 के models पर टूटते हैं। नए Opus models पर temperature और top p supported नहीं — four hundred error। Prefill भी नए models पर नहीं चलता — उसकी जगह structured outputs। API key हमेशा environment variable में। और हर response पर stop reason check करो — max tokens आया मतलब response कट गया है।",
+      "audioFile": null, "durationSec": 34
+    },
+    {
+      "id": 10, "type": "aipOutro", "hideCaptions": true,
+      "teaserLabel": "अगले episode में",
+      "teaser": "Prompt Engineering & Structured Output — exam का 20%, live examples के साथ",
+      "cta": "Subscribe करें — AI Padhai",
+      "footer": "नया video हर हफ़्ते  •  Hindi + English mix  •  100% practical",
+      "narration": "तो दोस्तों — आज आपने पहली API call की, stateless design समझा, और 2026 के breaking changes भी। पूरा code description में GitHub link पर है। आज का homework — अपनी पहली API call करो और comments में बताओ पहला सवाल क्या पूछा। अगले episode में prompt engineering — exam का पूरा बीस percent। Like, subscribe — मिलते हैं अगले episode में!",
+      "audioFile": null, "durationSec": 26
+    }
+  ]
+}

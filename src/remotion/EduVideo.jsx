@@ -21,6 +21,9 @@ import { KaraokeCaptions } from './components/KaraokeCaptions';
 import { BackgroundMusic, buildVoiceRanges } from './components/BackgroundMusic';
 import { sceneDurationFrames } from './utils/timeline';
 import { loadDevanagariFont, FONT_STACK } from './utils/fonts';
+import {
+  TitleScene, IconRowScene, BarChartScene, ComparisonScene, CodeScene, OutroScene,
+} from './scenes/aipadhai/index.jsx';
 
 loadDevanagariFont();
 
@@ -33,6 +36,13 @@ const SCENE_COMPONENTS = {
   summary: SummaryScene,
   section: SectionScene,
   demo: DemoScene,
+  // AI Padhai branded pack (CCA-F series design system)
+  aipTitle: TitleScene,
+  aipIconRows: IconRowScene,
+  aipBarChart: BarChartScene,
+  aipComparison: ComparisonScene,
+  aipCode: CodeScene,
+  aipOutro: OutroScene,
 };
 
 function audioSrc(file) {
@@ -90,7 +100,7 @@ export const EduVideo = ({ topic, scenes, accentColor = '#7c5cfc', hashtag }) =>
               wordTimings={scene.wordTimings}
               narration={scene.narration}
               accentColor={accentColor}
-              hidden={scene.type === 'summary'}
+              hidden={scene.type === 'summary' || scene.hideCaptions}
             />
           </Sequence>
         );
