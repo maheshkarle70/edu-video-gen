@@ -12,11 +12,12 @@ Read **`docs/PROJECT_CONTEXT.md`** for full architecture, API routes, file map, 
 - **Run:** `cd pkg && npm start` → `pkg/server/index.js`
 - **Env:** `pkg/.env` (never commit)
 - **Modes:** Short (6-scene one-click) | Long (Plan → Script → Media → Preview → Render)
-- **Long-form testing:** `MAX_LONG_SUBTOPICS = 1` in `pkg/public/index.html`
+- **Long-form:** up to `MAX_LONG_SUBTOPICS = 10` in `pkg/public/index.html` (recommended topics auto-selected)
 - **Remotion:** pinned 4.0.484; components in `src/remotion/`; preview bundle `pkg/public/preview-player.js` (gitignored, rebuilt via `pkg/server/build-preview.js` on start)
 - **Media:** uploads at `/uploads/`; `.mov` auto-transcodes to `.mp4`; HTML mockups use inline `ScrollingHtmlFrame`, not iframe
+- **Languages:** Marathi TTS uses `eleven_v3`. Devanagari fonts are webpack-inlined as data URLs in `src/remotion/utils/fonts.js` (no `delayRender` / no staticFile fetch — those hung renders).
 - **Preview vs render:** `timeline.js` caps preview durations (hook 8s, demo 16s, summary 18s); full render uses full narration
-- **After changes:** restart server for backend; rebuild preview bundle after Remotion JSX changes
+- **After changes:** restart server for backend; rebuild preview bundle after Remotion JSX changes (`rm pkg/public/preview-player.js` or touch preview-client)
 
 ## Key paths
 

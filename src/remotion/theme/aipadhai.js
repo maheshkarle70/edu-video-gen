@@ -1,6 +1,6 @@
 // src/remotion/theme/aipadhai.js — AI Padhai brand tokens
 // Single place to change the channel look. Matches the CCA-F deck design system.
-import { FONT_STACK } from '../utils/fonts';
+import { FONT_STACK } from '../utils/fonts.js';
 
 export const AIP = {
   bgDark: '#12151D',

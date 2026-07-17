@@ -4,7 +4,7 @@
 // frame 0 = start of its <Sequence>.
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
-import { AIP, badgeStyle } from '../../theme/aipadhai';
+import { AIP, badgeStyle } from '../../theme/aipadhai.js';
 
 // ---------- shared helpers ----------
 const useEnter = (delayFrames = 0, durFrames = 14) => {

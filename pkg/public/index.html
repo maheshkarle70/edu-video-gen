@@ -111,6 +111,31 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;
 .dl-btn:hover{opacity:0.88;}
 .vid-preview{width:100%;border-radius:12px;margin-top:16px;background:#000;max-height:480px;display:block;}
 
+/* Publish metadata (YouTube / social) */
+.publish-card{margin-top:18px;background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:20px 22px;}
+.publish-card h3{font-size:15px;font-weight:800;margin-bottom:4px;letter-spacing:-0.2px;}
+.publish-card .pub-sub{font-size:12px;color:var(--mu);margin-bottom:16px;line-height:1.45;}
+.pub-fld{margin-bottom:14px;}
+.pub-fld label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-family:var(--mono);color:var(--mu);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;}
+.pub-fld input,.pub-fld textarea{width:100%;background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:11px 13px;color:var(--tx);font-family:var(--sans);font-size:13px;line-height:1.5;resize:vertical;}
+.pub-fld input:focus,.pub-fld textarea:focus{outline:none;border-color:var(--ac);}
+.pub-fld textarea{min-height:140px;}
+.pub-copy{background:transparent;border:1px solid var(--b2);border-radius:7px;padding:4px 10px;color:var(--mu);font-family:var(--mono);font-size:10px;cursor:pointer;text-transform:none;letter-spacing:0;}
+.pub-copy:hover{border-color:var(--ac);color:var(--tx);}
+.pub-copy.ok{border-color:var(--gr);color:var(--gr);}
+.pub-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.pub-opt{background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:7px 10px;font-size:11px;color:var(--tx);cursor:pointer;line-height:1.35;text-align:left;max-width:100%;}
+.pub-opt:hover{border-color:var(--ac);}
+.pub-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.pub-tag{background:rgba(124,92,252,0.12);border:1px solid rgba(124,92,252,0.28);border-radius:999px;padding:4px 10px;font-size:11px;color:#cbbfff;}
+.pub-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+.pub-btn{background:var(--ac);border:none;border-radius:10px;padding:10px 16px;color:#fff;font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;}
+.pub-btn:hover{opacity:0.9;}
+.pub-btn.ghost{background:transparent;border:1px solid var(--b2);color:var(--tx);}
+.pub-btn:disabled{opacity:0.5;cursor:wait;}
+.pub-status{font-size:12px;color:var(--mu);margin:8px 0 0;min-height:18px;}
+.pub-status.err{color:var(--rd);}
+
 /* Advanced section */
 .adv-toggle{background:none;border:1px solid var(--b2);border-radius:10px;padding:10px 16px;color:var(--mu);font-family:var(--mono);font-size:11px;cursor:pointer;width:100%;text-align:left;display:flex;align-items:center;justify-content:space-between;transition:all 0.15s;}
 .adv-toggle:hover{border-color:var(--ac);color:var(--tx);}
@@ -231,6 +256,14 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;
 .preview-wrap .idle{padding:24px;}
 #previewPlayerHost{width:100%;min-height:280px;}
 
+.draft-bar{display:none;align-items:center;justify-content:space-between;gap:10px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.28);border-radius:10px;padding:9px 12px;font-size:11px;font-family:var(--mono);color:var(--gr);line-height:1.4;}
+.draft-bar.show{display:flex;}
+.draft-bar .draft-actions{display:flex;gap:6px;flex-shrink:0;}
+.draft-bar button{font-size:9px;font-family:var(--mono);padding:4px 9px;border-radius:6px;border:1px solid rgba(0,229,160,0.35);background:var(--s1);color:var(--gr);cursor:pointer;}
+.draft-bar button:hover{border-color:var(--gr);color:var(--tx);}
+.draft-bar button.danger{border-color:rgba(255,68,102,0.4);color:var(--rd);}
+.draft-hint{font-size:10px;font-family:var(--mono);color:var(--mu);margin-top:-4px;}
+
 @media(max-width:860px){.layout{grid-template-columns:1fr;}}
 </style>
 </head>
@@ -253,6 +286,15 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;
     <div class="sdot" id="sdot"></div>
     <span id="smsg">Connecting...</span>
   </div>
+
+  <div class="draft-bar" id="draftBar">
+    <span id="draftMsg">Draft restored from your last session.</span>
+    <div class="draft-actions">
+      <button type="button" onclick="hideDraftBar()">Dismiss</button>
+      <button type="button" class="danger" onclick="discardDraft()">Discard</button>
+    </div>
+  </div>
+  <div class="draft-hint" id="draftHint">Progress auto-saves in this browser.</div>
 
   <div class="usage-strip" id="usageStrip">
     <h4>API usage</h4>
@@ -332,8 +374,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;
       <div class="sec-title">Preview before render</div>
       <p class="storyboard-note">Build a silent preview first. Approve, then render with voiceover + MP4.</p>
       <label class="storyboard-note" style="display:flex;align-items:center;gap:8px;margin:8px 0 12px;cursor:pointer">
-        <input type="checkbox" id="useMockups" checked />
-        Use AI HTML mockups for sections without uploads (e.g. claude.ai homepage)
+        <input type="checkbox" id="useMockups" />
+        Use AI HTML mockups for sections without uploads <span style="opacity:.7">(slower — uncheck for a fast preview)</span>
       </label>
       <button type="button" class="outline-btn" id="previewBtn" onclick="buildPreview()">▶ Build preview</button>
     </div>
@@ -356,11 +398,13 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;
         <option>English</option>
         <option>Hindi</option>
         <option value="Hinglish (Hindi + English mix)">Hinglish</option>
-        <option>Tamil</option><option>Telugu</option><option>Marathi</option>
+        <option>Marathi</option>
+        <option>Tamil</option><option>Telugu</option>
         <option>Gujarati</option><option>Bengali</option>
         <option>Spanish</option><option>French</option><option>German</option>
       </select>
     </div>
+    <div class="idle" id="langVoiceHint" style="margin-top:6px;font-size:10px;display:none"></div>
   </div>
 
   <div class="sec">
@@ -481,12 +525,43 @@ let recordingSectionId = null;
 let recordedChunks = [];
 let recordStream = null;
 
-const MAX_LONG_SUBTOPICS = 1;
+const MAX_LONG_SUBTOPICS = 10;
 let wizardStep = 1;
 let pipelineJobId = null;
 let productionBrief = null;
 let assembledScript = null;
 let previewProps = null;
+let lastRenderedScript = null;
+let publishMeta = null;
+let draftSaveTimer = null;
+let draftRestoring = false;
+const DRAFT_KEY = 'eduVideoGen.draft.v1';
+let sessionClaude = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheCreationTokens: 0,
+  cacheReadTokens: 0,
+  requests: 0,
+};
+
+function trackClaudeUsage(usage) {
+  if (!usage) return;
+  const has = usage.inputTokens || usage.outputTokens || usage.cacheCreationTokens || usage.cacheReadTokens;
+  sessionClaude = {
+    inputTokens: (sessionClaude.inputTokens || 0) + (usage.inputTokens || 0),
+    outputTokens: (sessionClaude.outputTokens || 0) + (usage.outputTokens || 0),
+    cacheCreationTokens: (sessionClaude.cacheCreationTokens || 0) + (usage.cacheCreationTokens || 0),
+    cacheReadTokens: (sessionClaude.cacheReadTokens || 0) + (usage.cacheReadTokens || 0),
+    requests: (sessionClaude.requests || 0) + (usage.requests || (has ? 1 : 0)),
+    model: usage.model || sessionClaude.model || null,
+  };
+}
+
+function fmtUsd(n) {
+  if (n == null || Number.isNaN(n)) return '—';
+  if (n < 0.01) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(2)}`;
+}
 
 const FRIENDLY = {
   1: 'Writing your lesson...',
@@ -509,6 +584,277 @@ function fmtNum(n) {
   return Number(n).toLocaleString('en-US');
 }
 
+function slimSectionMedia(mediaMap) {
+  const out = {};
+  for (const [id, m] of Object.entries(mediaMap || {})) {
+    if (!m) continue;
+    // Keep server URLs; drop bulky inline HTML (reloaded from /mockups/ on demand)
+    out[id] = {
+      type: m.type,
+      url: m.url || null,
+      file: m.file || null,
+      filePath: m.filePath || null,
+      fileName: m.fileName || null,
+      caption: m.caption || '',
+      generated: !!m.generated,
+    };
+    // Only keep inline HTML if there is no URL (otherwise localStorage fills up fast)
+    if (!out[id].url && m.htmlContent) {
+      out[id].htmlContent = m.htmlContent;
+      out[id].htmlStyles = m.htmlStyles || '';
+    }
+  }
+  return out;
+}
+
+function slimScriptMedia(script) {
+  if (!script?.scenes) return script;
+  return {
+    ...script,
+    scenes: script.scenes.map((s) => {
+      if (!s.media) return s;
+      const slim = slimSectionMedia({ m: s.media }).m;
+      return { ...s, media: slim };
+    }),
+  };
+}
+
+function slimPreviewProps(props) {
+  if (!props) return null;
+  return {
+    ...props,
+    scenes: (props.scenes || []).map((s) => {
+      if (!s.media) return s;
+      const slim = slimSectionMedia({ m: s.media }).m;
+      return { ...s, media: slim };
+    }),
+  };
+}
+
+function collectDraft() {
+  return {
+    v: 1,
+    savedAt: Date.now(),
+    topic: document.getElementById('ti')?.value || '',
+    language: document.getElementById('lg')?.value || 'English',
+    format: document.getElementById('fmt')?.value || 'portrait',
+    style: sty,
+    accentColor: color,
+    voiceId,
+    voiceName,
+    videoMode,
+    wizardStep,
+    outlineData,
+    selectedTopicIds: [...selectedTopicIds],
+    storyboardSessionId,
+    sectionMedia: slimSectionMedia(sectionMedia),
+    pipelineJobId,
+    productionBrief,
+    assembledScript: slimScriptMedia(assembledScript),
+    previewProps: slimPreviewProps(previewProps),
+    lastRenderedScript: slimScriptMedia(lastRenderedScript),
+    publishMeta,
+    useMockups: !!document.getElementById('useMockups')?.checked,
+  };
+}
+
+function scheduleDraftSave(delay = 450) {
+  if (draftRestoring) return;
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(() => saveDraft(), delay);
+}
+
+function saveDraft() {
+  if (draftRestoring) return;
+  try {
+    const draft = collectDraft();
+    // Skip empty brand-new sessions
+    const hasWork = !!(
+      draft.topic.trim()
+      || draft.outlineData
+      || draft.productionBrief
+      || draft.assembledScript
+      || Object.keys(draft.sectionMedia || {}).length
+    );
+    if (!hasWork && draft.videoMode === 'short') {
+      localStorage.removeItem(DRAFT_KEY);
+      updateDraftHint(null);
+      return;
+    }
+    const raw = JSON.stringify(draft);
+    try {
+      localStorage.setItem(DRAFT_KEY, raw);
+    } catch {
+      // Quota exceeded — drop preview props / last script and retry
+      draft.previewProps = null;
+      draft.lastRenderedScript = null;
+      draft.publishMeta = null;
+      if (draft.assembledScript?.scenes) {
+        draft.assembledScript = {
+          ...draft.assembledScript,
+          scenes: draft.assembledScript.scenes.map((s) => {
+            const { media, ...rest } = s;
+            if (!media) return rest;
+            return {
+              ...rest,
+              media: {
+                type: media.type,
+                url: media.url,
+                file: media.file,
+                caption: media.caption,
+              },
+            };
+          }),
+        };
+      }
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    }
+    updateDraftHint(draft.savedAt);
+  } catch (e) {
+    console.warn('[Draft] save failed', e);
+  }
+}
+
+function readDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw);
+    if (!draft || draft.v !== 1) return null;
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
+function updateDraftHint(savedAt) {
+  const el = document.getElementById('draftHint');
+  if (!el) return;
+  if (!savedAt) {
+    el.textContent = 'Progress auto-saves in this browser.';
+    return;
+  }
+  const t = new Date(savedAt);
+  el.textContent = `Draft saved ${t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · survives refresh`;
+}
+
+function hideDraftBar() {
+  document.getElementById('draftBar')?.classList.remove('show');
+}
+
+function discardDraft() {
+  if (!confirm('Discard the saved draft and start fresh?')) return;
+  localStorage.removeItem(DRAFT_KEY);
+  location.reload();
+}
+
+function applyModeChrome(mode) {
+  document.getElementById('modeShort').classList.toggle('on', mode === 'short');
+  document.getElementById('modeLong').classList.toggle('on', mode === 'long');
+  document.getElementById('longOutlineSec').style.display = mode === 'long' ? 'flex' : 'none';
+  document.getElementById('longOutlineSec').style.flexDirection = 'column';
+  document.getElementById('topicLabel').textContent = mode === 'long' ? 'Tutorial title' : 'What should we teach?';
+  const showWizard = mode === 'long';
+  document.getElementById('wizardBar').classList.toggle('show', showWizard);
+  document.getElementById('wizardNav').classList.toggle('show', showWizard);
+  const fmt = document.getElementById('fmt');
+  if (mode === 'long') {
+    fmt.querySelector('option[value="portrait"]').disabled = true;
+  } else {
+    fmt.querySelector('option[value="portrait"]').disabled = false;
+  }
+}
+
+async function restoreDraft() {
+  const draft = readDraft();
+  if (!draft) return false;
+
+  draftRestoring = true;
+  try {
+    if (draft.topic) document.getElementById('ti').value = draft.topic;
+    if (draft.language) document.getElementById('lg').value = draft.language;
+    if (draft.format) document.getElementById('fmt').value = draft.format;
+    if (draft.style) {
+      sty = draft.style;
+      document.querySelectorAll('.chip[data-v]').forEach((el) => {
+        el.classList.toggle('on', el.dataset.v === draft.style);
+      });
+    }
+    if (draft.accentColor) setC(draft.accentColor);
+    if (draft.voiceId) {
+      voiceId = draft.voiceId;
+      voiceName = draft.voiceName || voiceName;
+      localStorage.setItem('voiceId', voiceId);
+      if (voiceName) localStorage.setItem('voiceName', voiceName);
+    }
+    if (typeof draft.useMockups === 'boolean') {
+      const um = document.getElementById('useMockups');
+      if (um) um.checked = draft.useMockups;
+    }
+
+    videoMode = draft.videoMode === 'long' ? 'long' : 'short';
+    applyModeChrome(videoMode);
+
+    outlineData = draft.outlineData || null;
+    selectedTopicIds = new Set(draft.selectedTopicIds || []);
+    storyboardSessionId = draft.storyboardSessionId || null;
+    sectionMedia = draft.sectionMedia || {};
+    pipelineJobId = draft.pipelineJobId || null;
+    productionBrief = draft.productionBrief || null;
+    assembledScript = draft.assembledScript || null;
+    previewProps = draft.previewProps || null;
+    lastRenderedScript = draft.lastRenderedScript || null;
+    publishMeta = draft.publishMeta || null;
+    wizardStep = Math.max(1, Math.min(4, draft.wizardStep || 1));
+
+    if (videoMode === 'long') {
+      if (outlineData) {
+        document.getElementById('topicPanel').classList.add('show');
+        document.getElementById('topicActions').style.display = 'flex';
+        renderTopicPanel();
+      }
+      if (productionBrief) renderBriefPanel(productionBrief);
+      wizardGo(wizardStep);
+      if (assembledScript) {
+        renderScript(assembledScript);
+        document.getElementById('hero').style.display = 'none';
+        document.getElementById('previewSection').style.display = 'block';
+        if (previewProps) {
+          try {
+            await loadPreviewScript();
+            const host = document.getElementById('previewPlayerHost');
+            host.innerHTML = '';
+            window.mountPreviewPlayer(host, previewProps, document.getElementById('fmt').value);
+          } catch (e) {
+            document.getElementById('previewPlayerHost').innerHTML =
+              `<div class="idle">Draft restored — click Build preview to remount (${escHtml(e.message)})</div>`;
+          }
+        } else {
+          document.getElementById('previewPlayerHost').innerHTML =
+            '<div class="idle">Draft restored — click Build preview to remount player</div>';
+        }
+      }
+      updateWizardUI();
+    } else {
+      document.getElementById('gb').textContent = '🎬 Create Video';
+      document.getElementById('gb').disabled = false;
+    }
+
+    const bar = document.getElementById('draftBar');
+    const msg = document.getElementById('draftMsg');
+    if (bar && msg) {
+      const when = draft.savedAt ? new Date(draft.savedAt).toLocaleString() : 'earlier';
+      msg.textContent = `Draft restored (${when}). Continue where you left off.`;
+      bar.classList.add('show');
+    }
+    updateDraftHint(draft.savedAt);
+    addLog('ok', 'Draft restored from browser storage');
+    return true;
+  } finally {
+    draftRestoring = false;
+  }
+}
+
 function meterClass(pct) {
   if (pct >= 90) return 'crit';
   if (pct >= 75) return 'warn';
@@ -522,7 +868,8 @@ function renderUsageUI(balances, thisVideo) {
   const cl = balances.lifetime?.claude || {};
   const el = balances.lifetime?.elevenlabs || {};
   const eb = balances.providers?.elevenlabs?.balance;
-  const claudeTotal = (cl.inputTokens || 0) + (cl.outputTokens || 0);
+  const claudeTotal = cl.totalTokens || ((cl.inputTokens || 0) + (cl.outputTokens || 0)
+    + (cl.cacheCreationTokens || 0) + (cl.cacheReadTokens || 0));
 
   let elevenRemaining = '—';
   let elevenPct = 0;
@@ -537,19 +884,39 @@ function renderUsageUI(balances, thisVideo) {
     meterHtml = `<div class="usage-note">${escHtml(eb.error)}</div>`;
   }
 
+  const sessTotal = (sessionClaude.inputTokens || 0) + (sessionClaude.outputTokens || 0)
+    + (sessionClaude.cacheCreationTokens || 0) + (sessionClaude.cacheReadTokens || 0);
+  const cacheRead = cl.cacheReadTokens || 0;
+
   const strip = document.getElementById('usageStrip');
   strip.innerHTML = `
     <h4>API usage</h4>
     <div class="usage-row"><span class="lbl">Claude (lifetime)</span><span class="val">${fmtNum(claudeTotal)} tok</span></div>
+    <div class="usage-row"><span class="lbl">Est. Claude spend</span><span class="val">${fmtUsd(cl.estimatedCostUsd)}</span></div>
+    <div class="usage-row"><span class="lbl">Cache reads</span><span class="val">${fmtNum(cacheRead)} tok</span></div>
+    ${sessTotal ? `<div class="usage-row"><span class="lbl">This session</span><span class="val">${fmtNum(sessTotal)} tok</span></div>` : ''}
     <div class="usage-row"><span class="lbl">ElevenLabs (lifetime)</span><span class="val">${fmtNum(el.characters)} chars</span></div>
     ${eb && !eb.error ? `<div class="usage-row"><span class="lbl">ElevenLabs left</span><span class="val">${elevenRemaining}</span></div>${meterHtml}` : ''}`;
 
+  const tv = thisVideo?.claude || {};
   const videoBlock = thisVideo ? `
     <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--b1)">
       <div style="color:var(--ac);font-weight:700;margin-bottom:8px">This video</div>
-      <div class="usage-row"><span class="lbl">Claude</span><span class="val">${fmtNum(thisVideo.claude?.totalTokens)} tokens</span></div>
-      <div class="usage-row"><span class="lbl">ElevenLabs</span><span class="val">${fmtNum(thisVideo.elevenlabs?.characters)} chars · ${thisVideo.elevenlabs?.requests || 0} requests</span></div>
+      <div class="usage-row"><span class="lbl">Claude total</span><span class="val">${fmtNum(tv.totalTokens)} tokens</span></div>
+      <div class="usage-row"><span class="lbl">↳ input</span><span class="val">${fmtNum(tv.inputTokens)}</span></div>
+      <div class="usage-row"><span class="lbl">↳ output</span><span class="val">${fmtNum(tv.outputTokens)}</span></div>
+      <div class="usage-row"><span class="lbl">↳ cache write</span><span class="val">${fmtNum(tv.cacheCreationTokens)}</span></div>
+      <div class="usage-row"><span class="lbl">↳ cache read</span><span class="val">${fmtNum(tv.cacheReadTokens)} (${tv.cacheHitRate || 0}%)</span></div>
+      <div class="usage-row"><span class="lbl">Prompt caching</span><span class="val">${escHtml(tv.promptCaching || 'off')}</span></div>
+      <div class="usage-row"><span class="lbl">Est. cost</span><span class="val">${fmtUsd(tv.estimatedCostUsd)}</span></div>
+      <div class="usage-row"><span class="lbl">ElevenLabs</span><span class="val">${fmtNum(thisVideo.elevenlabs?.characters)} chars · ${thisVideo.elevenlabs?.requests || 0} req</span></div>
     </div>` : '';
+
+  const recent = (balances.recentVideos || []).slice(0, 6).map((v) => {
+    const c = v.claude || {};
+    const label = v.kind && v.kind !== 'video' ? v.kind : 'video';
+    return `<div class="usage-row"><span class="lbl">${escHtml(label)} · ${escHtml((v.topic || '').slice(0, 28))}</span><span class="val">${fmtNum(c.totalTokens)} tok · ${fmtUsd(c.estimatedCostUsd)}</span></div>`;
+  }).join('');
 
   const detail = document.getElementById('usageDetail');
   if (detail) {
@@ -557,7 +924,10 @@ function renderUsageUI(balances, thisVideo) {
       ${videoBlock}
       <div class="usage-row"><span class="lbl">Claude input (lifetime)</span><span class="val">${fmtNum(cl.inputTokens)}</span></div>
       <div class="usage-row"><span class="lbl">Claude output (lifetime)</span><span class="val">${fmtNum(cl.outputTokens)}</span></div>
+      <div class="usage-row"><span class="lbl">Cache writes (lifetime)</span><span class="val">${fmtNum(cl.cacheCreationTokens)}</span></div>
+      <div class="usage-row"><span class="lbl">Cache reads (lifetime)</span><span class="val">${fmtNum(cl.cacheReadTokens)}</span></div>
       <div class="usage-row"><span class="lbl">Claude requests</span><span class="val">${fmtNum(cl.requests)}</span></div>
+      <div class="usage-row"><span class="lbl">Est. lifetime spend</span><span class="val">${fmtUsd(cl.estimatedCostUsd)}</span></div>
       <div class="usage-row" style="margin-top:10px"><span class="lbl">ElevenLabs chars (lifetime)</span><span class="val">${fmtNum(el.characters)}</span></div>
       <div class="usage-row"><span class="lbl">ElevenLabs requests</span><span class="val">${fmtNum(el.requests)}</span></div>
       ${eb && !eb.error ? `
@@ -567,7 +937,9 @@ function renderUsageUI(balances, thisVideo) {
           <div class="usage-row"><span class="lbl">Remaining</span><span class="val">${elevenRemaining}</span></div>
           <div class="usage-meter" style="margin-top:8px"><div class="usage-meter-fill ${meterClass(elevenPct)}" style="width:${Math.min(100, elevenPct)}%"></div></div>
         </div>` : ''}
-      <div class="usage-note">${escHtml(balances.providers?.claude?.note || '')}</div>`;
+      ${recent ? `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--b1)"><div style="font-size:10px;color:var(--mu);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Recent</div>${recent}</div>` : ''}
+      <div class="usage-note">${escHtml(balances.providers?.claude?.note || '')}</div>
+      <div class="usage-note">${escHtml(balances.providers?.claude?.pricingNote || '')}</div>`;
   }
 }
 
@@ -582,6 +954,20 @@ window.onload = async () => {
   await checkServer();
   await loadVoices();
   document.getElementById('voiceSearch').addEventListener('input', onVoiceSearchInput);
+  document.getElementById('lg').addEventListener('change', () => {
+    onLanguageChange();
+    scheduleDraftSave();
+  });
+  document.getElementById('ti').addEventListener('input', () => scheduleDraftSave());
+  document.getElementById('fmt').addEventListener('change', () => scheduleDraftSave());
+  const useMockups = document.getElementById('useMockups');
+  if (useMockups) useMockups.addEventListener('change', () => scheduleDraftSave());
+  window.addEventListener('beforeunload', () => {
+    try { saveDraft(); } catch {}
+  });
+  await onLanguageChange();
+  await restoreDraft();
+  updateVoiceLabel();
 };
 
 async function checkServer() {
@@ -634,6 +1020,7 @@ function selectVoice(id, name) {
   document.querySelectorAll('.voice-card').forEach(c => c.classList.toggle('on', c.dataset.id === id));
   document.querySelectorAll('.voice-search-item').forEach(c => c.classList.toggle('on', c.dataset.id === id));
   updateVoiceLabel();
+  scheduleDraftSave();
 }
 
 function updateVoiceLabel() {
@@ -674,11 +1061,12 @@ async function searchVoices(q) {
 async function previewVoice() {
   const btn = document.getElementById('voicePreviewBtn');
   const audio = document.getElementById('voicePreviewAudio');
+  const language = document.getElementById('lg').value;
   btn.disabled = true; btn.textContent = '⏳';
   try {
     const res = await fetch(API + '/voices/preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ voiceId }),
+      body: JSON.stringify({ voiceId, language }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Preview failed');
@@ -688,6 +1076,31 @@ async function previewVoice() {
     alert('Voice preview failed: ' + err.message);
   } finally {
     btn.disabled = false; btn.textContent = '▶ Test';
+  }
+}
+
+async function onLanguageChange() {
+  const language = document.getElementById('lg').value;
+  const hintEl = document.getElementById('langVoiceHint');
+  try {
+    const hint = await fetch(API + '/voices/hints/language?language=' + encodeURIComponent(language)).then(r => r.json());
+    if (hint.searchHint) {
+      hintEl.style.display = 'block';
+      const modelNote = hint.ttsModel === 'eleven_v3'
+        ? `Uses ElevenLabs v3 for ${language} audio.`
+        : `Uses ${hint.ttsModel}.`;
+      hintEl.textContent = `${modelNote} Tip: pick an Indian voice (Amit Gupta) or search “${hint.searchHint}”.`;
+      const search = document.getElementById('voiceSearch');
+      if (search && (!search.value || /marathi|hindi|indian|tamil|telugu/i.test(search.value))) {
+        search.value = hint.searchHint;
+        searchVoices(hint.searchHint);
+      }
+    } else {
+      hintEl.style.display = 'none';
+      hintEl.textContent = '';
+    }
+  } catch {
+    hintEl.style.display = 'none';
   }
 }
 
@@ -702,28 +1115,18 @@ function setT(el, v) {
     storyboardSessionId = null;
     renderTopicPanel();
   }
+  scheduleDraftSave();
 }
 
 function setVideoMode(mode) {
   videoMode = mode;
-  document.getElementById('modeShort').classList.toggle('on', mode === 'short');
-  document.getElementById('modeLong').classList.toggle('on', mode === 'long');
-  document.getElementById('longOutlineSec').style.display = mode === 'long' ? 'flex' : 'none';
-  document.getElementById('longOutlineSec').style.flexDirection = 'column';
-  document.getElementById('topicLabel').textContent = mode === 'long' ? 'Tutorial title' : 'What should we teach?';
+  applyModeChrome(mode);
 
-  const showWizard = mode === 'long';
-  document.getElementById('wizardBar').classList.toggle('show', showWizard);
-  document.getElementById('wizardNav').classList.toggle('show', showWizard);
-
-  const fmt = document.getElementById('fmt');
   if (mode === 'long') {
-    fmt.value = 'landscape';
-    fmt.querySelector('option[value="portrait"]').disabled = true;
+    document.getElementById('fmt').value = 'landscape';
     wizardGo(1);
     updateWizardUI();
   } else {
-    fmt.querySelector('option[value="portrait"]').disabled = false;
     document.getElementById('gb').textContent = '🎬 Create Video';
     document.getElementById('gb').style.display = '';
     document.getElementById('gb').disabled = false;
@@ -743,6 +1146,7 @@ function setVideoMode(mode) {
     document.getElementById('hero').style.display = '';
     document.querySelectorAll('.wiz-step').forEach((el, i) => el.classList.toggle('active', i === 0));
   }
+  scheduleDraftSave(200);
 }
 
 function wizardGo(step) {
@@ -761,6 +1165,7 @@ function wizardGo(step) {
     document.getElementById('hero').style.display = 'none';
     document.getElementById('previewSection').style.display = 'block';
   }
+  scheduleDraftSave(200);
 }
 
 function updateWizardUI() {
@@ -822,11 +1227,16 @@ async function fetchBrief() {
 
     pipelineJobId = data.jobId;
     productionBrief = data.brief;
+    if (data.usage) {
+      trackClaudeUsage(data.usage);
+      refreshUsage();
+    }
     if (data.brief.accentColor) setC(data.brief.accentColor);
     renderBriefPanel(data.brief);
     renderStoryboard();
     addLog('ok', `Brief ready — ${data.brief.sections?.length || 0} sections`);
     updateWizardUI();
+    scheduleDraftSave(100);
   } catch (e) {
     document.getElementById('briefPanel').innerHTML = `<div class="idle" style="color:var(--rd)">${escHtml(e.message)}</div>`;
     alert('Brief failed: ' + e.message);
@@ -889,11 +1299,14 @@ async function buildPreview() {
   if (!productionBrief) { alert('Generate the script in Step 2 first.'); return; }
 
   const btn = document.getElementById('previewBtn');
+  const useMockups = document.getElementById('useMockups')?.checked ?? false;
   btn.disabled = true;
-  btn.textContent = '⏳ Building preview…';
+  btn.textContent = useMockups ? '⏳ Generating AI mockups…' : '⏳ Building preview…';
   document.getElementById('hero').style.display = 'none';
   document.getElementById('previewSection').style.display = 'block';
-  document.getElementById('previewPlayerHost').innerHTML = '<div class="idle">Assembling scenes…</div>';
+  document.getElementById('previewPlayerHost').innerHTML = useMockups
+    ? '<div class="idle">Generating AI mockups (this can take a minute)…</div>'
+    : '<div class="idle">Assembling scenes…</div>';
 
   try {
     const res = await fetch(API + '/assemble', {
@@ -905,14 +1318,28 @@ async function buildPreview() {
         format: document.getElementById('fmt').value,
         accentColor: color,
         jobId: pipelineJobId,
-        useMockups: document.getElementById('useMockups')?.checked ?? false,
+        useMockups,
       }),
     });
-    const data = await parseJsonRes(res);
-    if (!res.ok) throw new Error(data.error || 'Assemble failed');
+
+    const data = useMockups
+      ? await readAssembleSSE(res, (p) => {
+          const msg = p.msg || 'Working…';
+          btn.textContent = `⏳ ${msg}`;
+          document.getElementById('previewPlayerHost').innerHTML =
+            `<div class="idle">${escHtml(msg)}${p.total ? ` (${p.done || 0}/${p.total})` : ''}</div>`;
+        })
+      : await parseJsonRes(res);
+
+    if (!res.ok && !data?.script) throw new Error(data.error || 'Assemble failed');
+    if (data.error && !data.script) throw new Error(data.error);
 
     assembledScript = data.script;
     previewProps = data.previewProps;
+    if (data.mockupUsage) {
+      trackClaudeUsage(data.mockupUsage);
+      refreshUsage();
+    }
     if (data.sectionMedia) {
       sectionMedia = { ...sectionMedia, ...Object.fromEntries(
         Object.entries(data.sectionMedia).filter(([, m]) => m.generated),
@@ -921,6 +1348,8 @@ async function buildPreview() {
     if (data.mockupUsage?.totalTokens) {
       addLog('ok', `AI mockups generated (${fmtNum(data.mockupUsage.totalTokens)} Claude tokens)`);
     }
+    btn.textContent = '⏳ Loading player…';
+    document.getElementById('previewPlayerHost').innerHTML = '<div class="idle">Loading Remotion player…</div>';
     await loadPreviewScript();
 
     const host = document.getElementById('previewPlayerHost');
@@ -930,6 +1359,7 @@ async function buildPreview() {
     addLog('ok', 'Preview ready — scrub timeline on the right');
     updateWizardUI();
     renderScript(assembledScript);
+    scheduleDraftSave(100);
   } catch (e) {
     document.getElementById('previewPlayerHost').innerHTML = `<div class="idle" style="color:var(--rd)">${escHtml(e.message)}</div>`;
     alert('Preview failed: ' + e.message);
@@ -937,6 +1367,43 @@ async function buildPreview() {
     btn.disabled = false;
     btn.textContent = '▶ Rebuild preview';
   }
+}
+
+async function readAssembleSSE(res, onProgress) {
+  if (!res.ok && !res.headers.get('content-type')?.includes('text/event-stream')) {
+    const data = await parseJsonRes(res);
+    throw new Error(data.error || `Assemble failed (${res.status})`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let donePayload = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const parts = buf.split('\n\n');
+    buf = parts.pop() || '';
+    for (const chunk of parts) {
+      const lines = chunk.split('\n');
+      let event = 'message';
+      let dataLine = '';
+      for (const line of lines) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        if (line.startsWith('data:')) dataLine += line.slice(5).trim();
+      }
+      if (!dataLine) continue;
+      let payload;
+      try { payload = JSON.parse(dataLine); } catch { continue; }
+      if (event === 'progress') onProgress?.(payload);
+      if (event === 'error') throw new Error(payload.error || 'Assemble failed');
+      if (event === 'done') donePayload = payload;
+    }
+  }
+
+  if (!donePayload) throw new Error('Assemble stream ended without preview data');
+  return donePayload;
 }
 
 async function fetchOutline() {
@@ -965,9 +1432,14 @@ async function fetchOutline() {
     productionBrief = null;
     assembledScript = null;
     previewProps = null;
+    if (data.usage) {
+      trackClaudeUsage(data.usage);
+      refreshUsage();
+    }
     renderTopicPanel();
     document.getElementById('topicActions').style.display = 'flex';
     addLog('nf', `Outline ready — ${data.subtopics?.length || 0} topics suggested`);
+    scheduleDraftSave(100);
   } catch (e) {
     alert('Could not fetch topics: ' + e.message);
   } finally {
@@ -1098,6 +1570,7 @@ function renderStoryboard() {
 
 function setMediaCaption(sectionId, caption) {
   if (sectionMedia[sectionId]) sectionMedia[sectionId].caption = caption;
+  scheduleDraftSave();
 }
 
 function pickScreenshot(sectionId) {
@@ -1130,6 +1603,7 @@ async function uploadMediaFile(sectionId, file) {
   };
   renderStoryboard();
   addLog('ok', `Media attached — ${sectionId}`);
+  scheduleDraftSave(100);
 }
 
 async function onScreenshotPicked(sectionId, input) {
@@ -1164,6 +1638,7 @@ async function onVideoPicked(sectionId, input) {
 function removeMedia(sectionId) {
   delete sectionMedia[sectionId];
   renderStoryboard();
+  scheduleDraftSave(100);
 }
 
 function extractUrlFromText(text) {
@@ -1200,6 +1675,7 @@ async function captureLiveUrl(sectionId) {
     };
     renderStoryboard();
     addLog('ok', `Live URL captured — ${sectionId}`);
+    scheduleDraftSave(100);
   } catch (e) {
     alert('Live capture failed: ' + e.message);
   }
@@ -1236,6 +1712,11 @@ async function generateMockup(sectionId) {
     };
     renderStoryboard();
     addLog('ok', `AI mockup ready — ${sectionId}`);
+    if (data.usage) {
+      trackClaudeUsage(data.usage);
+      refreshUsage();
+    }
+    scheduleDraftSave(100);
   } catch (e) {
     alert('Mockup failed: ' + e.message);
   } finally {
@@ -1344,11 +1825,9 @@ function getStoryboardPayload() {
 }
 
 function toggleTopic(id, checked) {
-  if (checked && MAX_LONG_SUBTOPICS === 1) {
-    selectedTopicIds = new Set([id]);
-  } else if (checked) {
+  if (checked) {
     if (selectedTopicIds.size >= MAX_LONG_SUBTOPICS) {
-      alert(`Testing mode: select only ${MAX_LONG_SUBTOPICS} topic.`);
+      alert(`You can select up to ${MAX_LONG_SUBTOPICS} topics.`);
       renderTopicPanel();
       return;
     }
@@ -1357,6 +1836,7 @@ function toggleTopic(id, checked) {
     selectedTopicIds.delete(id);
   }
   renderTopicPanel();
+  scheduleDraftSave();
 }
 
 function selectRecommended() {
@@ -1365,23 +1845,26 @@ function selectRecommended() {
     outlineData.subtopics.filter(s => s.recommended).slice(0, MAX_LONG_SUBTOPICS).map(s => s.id),
   );
   renderTopicPanel();
+  scheduleDraftSave();
 }
 
 function selectAllTopics() {
   if (!outlineData) return;
   selectedTopicIds = new Set(outlineData.subtopics.slice(0, MAX_LONG_SUBTOPICS).map(s => s.id));
   renderTopicPanel();
+  scheduleDraftSave();
 }
 
 function clearTopics() {
   selectedTopicIds.clear();
   renderTopicPanel();
+  scheduleDraftSave();
 }
 
 function updateTopicEstimate() {
   const el = document.getElementById('topicEstimate');
   if (!outlineData || selectedTopicIds.size === 0) {
-    el.textContent = videoMode === 'long' ? `Select ${MAX_LONG_SUBTOPICS} topic (testing mode)` : '';
+    el.textContent = videoMode === 'long' ? `Select topics (up to ${MAX_LONG_SUBTOPICS})` : '';
     return;
   }
   const selected = outlineData.subtopics.filter(s => selectedTopicIds.has(s.id));
@@ -1399,6 +1882,7 @@ function setSty(el) {
   document.querySelectorAll('[data-v]').forEach(c => c.classList.remove('on'));
   el.classList.add('on');
   sty = el.dataset.v;
+  scheduleDraftSave();
 }
 
 function setC(hex, el) {
@@ -1406,6 +1890,7 @@ function setC(hex, el) {
   document.getElementById('cp').value = hex;
   document.querySelectorAll('.csw').forEach(s => s.classList.remove('on'));
   if (el) el.classList.add('on');
+  scheduleDraftSave();
 }
 
 function toggleAdvanced() {
@@ -1468,11 +1953,14 @@ async function run() {
     format: document.getElementById('fmt').value,
     voiceId,
     videoMode,
+    priorClaudeUsage: sessionClaude,
+    jobId: pipelineJobId,
   };
 
   if (videoMode === 'long') {
     payload.script = assembledScript;
     payload.selectedSubtopics = getSelectedSubtopics();
+    payload.sectionMedia = getStoryboardPayload();
   }
 
   try {
@@ -1514,7 +2002,10 @@ async function run() {
 
 function handleSSE(event, d) {
   if (event === 'progress') onProg(d);
-  if (event === 'script') renderScript(d);
+  if (event === 'script') {
+    lastRenderedScript = d;
+    renderScript(d);
+  }
   if (event === 'usage') renderUsageUI(d.balances, d.thisVideo);
   if (event === 'done') renderDone(d);
   if (event === 'error') {
@@ -1552,7 +2043,7 @@ function renderScript(s) {
     </div>`;
 }
 
-function renderDone({ downloadUrl, fileSizeMB, durationSec, scenes, topic, hasAudio, usage, balances }) {
+function renderDone({ downloadUrl, fileSizeMB, durationSec, scenes, topic, hasAudio, usage, balances, videoMode }) {
   const card = document.getElementById('progressCard');
   card.classList.remove('active');
   card.classList.add('done');
@@ -1564,11 +2055,14 @@ function renderDone({ downloadUrl, fileSizeMB, durationSec, scenes, topic, hasAu
     <div class="usage-card">
       <strong>This video used:</strong><br>
       Claude — ${fmtNum(usage.claude?.totalTokens)} tokens
-      (${fmtNum(usage.claude?.inputTokens)} in / ${fmtNum(usage.claude?.outputTokens)} out)<br>
+      (${fmtNum(usage.claude?.inputTokens)} in / ${fmtNum(usage.claude?.outputTokens)} out
+      · cache ${fmtNum(usage.claude?.cacheReadTokens)} read / ${fmtNum(usage.claude?.cacheCreationTokens)} write)<br>
+      Est. cost — ${fmtUsd(usage.claude?.estimatedCostUsd)} · caching: ${escHtml(usage.claude?.promptCaching || 'off')}<br>
       ElevenLabs — ${fmtNum(usage.elevenlabs?.characters)} characters
     </div>` : '';
 
   const url = API + downloadUrl;
+  const seedTitle = (lastRenderedScript && lastRenderedScript.topic) || topic || '';
   document.getElementById('resultCard').classList.add('show');
   document.getElementById('resultCard').innerHTML = `
     <div class="dl-card">
@@ -1580,7 +2074,186 @@ function renderDone({ downloadUrl, fileSizeMB, durationSec, scenes, topic, hasAu
       <a class="dl-btn" href="${url}" download target="_blank">⬇ Download MP4</a>
     </div>
     ${usageHtml}
-    <video src="${url}" controls class="vid-preview" playsinline></video>`;
+    <video src="${url}" controls class="vid-preview" playsinline></video>
+    <div class="publish-card" id="publishCard">
+      <h3>Publish metadata</h3>
+      <p class="pub-sub">Title, description &amp; tags ready for YouTube (or Shorts / Reels). Edit anything, then copy.</p>
+      <div class="pub-fld">
+        <label>Title <button type="button" class="pub-copy" data-copy="pubTitle">Copy</button></label>
+        <input id="pubTitle" type="text" value="${escHtml(seedTitle)}" maxlength="100" />
+        <div class="pub-opts" id="pubTitleOpts"></div>
+      </div>
+      <div class="pub-fld">
+        <label>Description <button type="button" class="pub-copy" data-copy="pubDesc">Copy</button></label>
+        <textarea id="pubDesc" placeholder="Generating description…"></textarea>
+      </div>
+      <div class="pub-fld">
+        <label>Tags <button type="button" class="pub-copy" data-copy="pubTags">Copy</button></label>
+        <input id="pubTags" type="text" placeholder="comma, separated, tags" />
+        <div class="pub-tags" id="pubTagChips"></div>
+      </div>
+      <div class="pub-fld">
+        <label>Hashtags <button type="button" class="pub-copy" data-copy="pubHash">Copy</button></label>
+        <input id="pubHash" type="text" placeholder="#Education #Tutorial" />
+      </div>
+      <div class="pub-actions">
+        <button type="button" class="pub-btn" id="pubRegenBtn">✨ Generate with AI</button>
+        <button type="button" class="pub-btn ghost" id="pubCopyAllBtn">Copy all</button>
+      </div>
+      <p class="pub-status" id="pubStatus">Generating metadata…</p>
+    </div>`;
+
+  document.querySelectorAll('#publishCard .pub-copy').forEach((btn) => {
+    btn.addEventListener('click', () => copyPublishField(btn.dataset.copy, btn));
+  });
+  document.getElementById('pubRegenBtn').addEventListener('click', () => fetchPublishMetadata({ force: true }));
+  document.getElementById('pubCopyAllBtn').addEventListener('click', copyAllPublishMeta);
+
+  fetchPublishMetadata({
+    topic: seedTitle,
+    durationSec,
+    videoMode: videoMode || (lastRenderedScript && lastRenderedScript.videoMode) || 'short',
+  });
+}
+
+async function fetchPublishMetadata({ force = false, topic, durationSec, videoMode: mode } = {}) {
+  const status = document.getElementById('pubStatus');
+  const btn = document.getElementById('pubRegenBtn');
+  if (!document.getElementById('publishCard')) return;
+  if (!hasAnthropicKey) {
+    if (status) {
+      status.className = 'pub-status err';
+      status.textContent = 'Add ANTHROPIC_API_KEY to generate metadata.';
+    }
+    return;
+  }
+
+  const script = lastRenderedScript || assembledScript || {};
+  const title = (topic || document.getElementById('pubTitle')?.value || script.topic || document.getElementById('ti')?.value || '').trim();
+  if (!title) {
+    if (status) {
+      status.className = 'pub-status err';
+      status.textContent = 'Missing topic — cannot generate metadata.';
+    }
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  if (status) {
+    status.className = 'pub-status';
+    status.textContent = force ? 'Regenerating…' : 'Generating metadata…';
+  }
+
+  try {
+    const res = await fetch(API + '/metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic: title,
+        language: document.getElementById('lg')?.value || 'English',
+        videoMode: mode || script.videoMode || videoMode || 'short',
+        hashtag: script.hashtag || '',
+        durationSec: durationSec || (script.scenes || []).reduce((a, s) => a + (s.durationSec || 6), 0),
+        scenes: (script.scenes || []).map((s) => ({
+          type: s.type,
+          title: s.title,
+          body: s.body,
+          narration: s.narration,
+          durationSec: s.durationSec,
+        })),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Metadata request failed');
+
+    publishMeta = data;
+    applyPublishMetadata(data);
+    if (data.usage) {
+      trackClaudeUsage(data.usage);
+      refreshUsage();
+    }
+    scheduleDraftSave(100);
+    if (status) {
+      status.className = 'pub-status';
+      status.textContent = 'Ready — edit and copy into YouTube Studio.';
+    }
+    addLog('ok', 'Publish metadata ready');
+  } catch (e) {
+    if (status) {
+      status.className = 'pub-status err';
+      status.textContent = e.message;
+    }
+    addLog('er', `Metadata: ${e.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function applyPublishMetadata(data) {
+  const titleEl = document.getElementById('pubTitle');
+  const descEl = document.getElementById('pubDesc');
+  const tagsEl = document.getElementById('pubTags');
+  const hashEl = document.getElementById('pubHash');
+  if (titleEl && data.title) titleEl.value = data.title;
+  if (descEl) descEl.value = data.description || '';
+  if (tagsEl) tagsEl.value = (data.tags || []).join(', ');
+  if (hashEl) hashEl.value = (data.hashtags || []).join(' ');
+
+  const opts = document.getElementById('pubTitleOpts');
+  if (opts) {
+    opts.innerHTML = (data.titleOptions || []).map((t) =>
+      `<button type="button" class="pub-opt">${escHtml(t)}</button>`
+    ).join('');
+    opts.querySelectorAll('.pub-opt').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (titleEl) titleEl.value = btn.textContent;
+      });
+    });
+  }
+
+  const chips = document.getElementById('pubTagChips');
+  if (chips) {
+    chips.innerHTML = (data.tags || []).map((t) =>
+      `<span class="pub-tag">${escHtml(t)}</span>`
+    ).join('');
+  }
+}
+
+async function copyPublishField(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  try {
+    await navigator.clipboard.writeText(el.value || '');
+    if (btn) {
+      const prev = btn.textContent;
+      btn.textContent = 'Copied';
+      btn.classList.add('ok');
+      setTimeout(() => {
+        btn.textContent = prev;
+        btn.classList.remove('ok');
+      }, 1200);
+    }
+  } catch {
+    el.select?.();
+  }
+}
+
+async function copyAllPublishMeta() {
+  const title = document.getElementById('pubTitle')?.value || '';
+  const desc = document.getElementById('pubDesc')?.value || '';
+  const tags = document.getElementById('pubTags')?.value || '';
+  const hash = document.getElementById('pubHash')?.value || '';
+  const block = `Title:\n${title}\n\nDescription:\n${desc}\n\nTags:\n${tags}\n\nHashtags:\n${hash}\n`;
+  try {
+    await navigator.clipboard.writeText(block);
+    const status = document.getElementById('pubStatus');
+    if (status) {
+      status.className = 'pub-status';
+      status.textContent = 'Copied title, description, tags & hashtags.';
+    }
+  } catch (e) {
+    alert('Could not copy — select the fields manually.');
+  }
 }
 </script>
 </body>

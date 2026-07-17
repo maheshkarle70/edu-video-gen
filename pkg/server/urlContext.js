@@ -21,7 +21,7 @@ export async function fetchPageContext(url) {
       Accept: 'text/html,application/xhtml+xml',
     },
     redirect: 'follow',
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(2500),
   });
 
   if (!res.ok) throw new Error(`Could not fetch ${url} (${res.status})`);

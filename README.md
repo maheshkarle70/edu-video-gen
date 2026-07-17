@@ -141,7 +141,8 @@ Without it, the video renders with silence — add your own voiceover in CapCut.
 ---
 
 ## Languages supported
-English, Hindi, Hinglish, Tamil, Telugu, Marathi, Spanish, French (and any language Claude supports).
+English, Hindi, Hinglish, **Marathi** (Devanagari + ElevenLabs `eleven_v3` audio), Tamil, Telugu, Spanish, French (and any language Claude supports).
+Marathi is not on `eleven_multilingual_v2` — the server auto-selects `eleven_v3` when Marathi is chosen.
 
 ## Output specs
 - **Format**: MP4 (H.264 + AAC)

@@ -1,6 +1,6 @@
 // Low-volume background music bed, ducked during voiceover
 import { Audio, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
-import { sceneDurationFrames, TRANSITION_SEC } from '../utils/timeline';
+import { sceneDurationFrames, TRANSITION_SEC } from '../utils/timeline.js';
 
 export const BackgroundMusic = ({ voiceRanges, musicFile = 'music/bed.m4a' }) => {
   const frame = useCurrentFrame();

@@ -39,8 +39,8 @@ cd pkg && npm install && npm start
 
 ### Step 1 — Plan (`POST /outline`)
 - Agent 1 (Claude) suggests subtopics from user topic
-- User selects sections to include
-- **Testing limit:** `MAX_LONG_SUBTOPICS = 1` in `pkg/public/index.html` — raise when testing is done
+- User selects sections to include (up to 10; recommended ones pre-selected)
+- Soft cap: `MAX_LONG_SUBTOPICS = 10` in `pkg/public/index.html`
 
 ### Step 2 — Script (`POST /brief`)
 - Agent 2 writes production brief: hook, per-section narration, on-screen text, media capture instructions, sample prompts
@@ -169,12 +169,29 @@ Static: `pkg/public/` (UI, uploads, b-roll, music). Uploads served at `/uploads/
 
 ---
 
+## Languages & TTS
+
+| Language | Script | ElevenLabs model | Notes |
+|----------|--------|------------------|-------|
+| English | Latin | `eleven_multilingual_v2` | Default |
+| Hindi / Hinglish | Devanagari (+ mix) | `eleven_multilingual_v2` | Fonts via `src/remotion/utils/fonts.js` |
+| **Marathi** | Devanagari | **`eleven_v3`** | Not on multilingual_v2 — model auto-selected in `pkg/server/language.js` |
+| Tamil | Tamil | `eleven_multilingual_v2` | Listed on v2 |
+| Gujarati / Bengali / Telugu / … | Indic | `eleven_v3` | Same v3 path as Marathi |
+
+Helpers live in `pkg/server/language.js` (prompt rules, TTS model, speech-rate estimates, voice preview text).
+UI tip + Marathi voice search hint when language changes (`pkg/public/index.html`).
+Prefer Indian voices (e.g. Amit Gupta) for Marathi/Hindi audio.
+
+---
+
 ## Known limitations / TODOs
 
-1. `MAX_LONG_SUBTOPICS = 1` — testing mode; increase for production
+1. Long-form allows up to 10 subtopics (`MAX_LONG_SUBTOPICS`)
 2. Preview uses capped scene durations; final render uses full hook narration length
 3. `preview-player.js` not in git — first `npm start` rebuilds it (~1s)
 4. README project structure section is outdated (still shows old flat layout); actual app lives under `pkg/`
+5. Marathi audio uses `eleven_v3` (5k char/request limit) — fine for per-scene narration; keep scenes under that limit
 
 ---
 
