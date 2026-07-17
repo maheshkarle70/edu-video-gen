@@ -56,6 +56,14 @@ const VOICE_SETTINGS = {
   use_speaker_boost: true,
 };
 
+/** eleven_v3 uses a simpler settings surface — omit style/speaker_boost. */
+function voiceSettingsForModel(modelId) {
+  if (modelId === 'eleven_v3') {
+    return { stability: 0.5, similarity_boost: 0.8 };
+  }
+  return VOICE_SETTINGS;
+}
+
 function postElevenLabs({ apiKey, voiceId, path, body, accept }) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify(body);
@@ -87,14 +95,14 @@ function postElevenLabs({ apiKey, voiceId, path, body, accept }) {
   });
 }
 
-export async function generateAudioWithTimestamps({ apiKey, voiceId, text, outputPath }) {
+export async function generateAudioWithTimestamps({ apiKey, voiceId, text, outputPath, modelId = 'eleven_multilingual_v2' }) {
   try {
     const buf = await postElevenLabs({
       apiKey,
       voiceId,
       path: '/with-timestamps',
       accept: 'application/json',
-      body: { text, model_id: 'eleven_multilingual_v2', voice_settings: VOICE_SETTINGS },
+      body: { text, model_id: modelId, voice_settings: voiceSettingsForModel(modelId) },
     });
 
     const data = JSON.parse(buf.toString());
@@ -102,20 +110,20 @@ export async function generateAudioWithTimestamps({ apiKey, voiceId, text, outpu
     fs.writeFileSync(outputPath, audio);
 
     const wordTimings = alignmentToWordTimings(text, data.alignment);
-    return { outputPath, wordTimings, characters: text.length };
+    return { outputPath, wordTimings, characters: text.length, modelId };
   } catch (e) {
     console.warn('[ElevenLabs] Timestamps unavailable, falling back:', e.message);
-    await generateAudio({ apiKey, voiceId, text, outputPath });
-    return { outputPath, wordTimings: null, characters: text.length };
+    await generateAudio({ apiKey, voiceId, text, outputPath, modelId });
+    return { outputPath, wordTimings: null, characters: text.length, modelId };
   }
 }
 
-export function generateAudio({ apiKey, voiceId, text, outputPath }) {
+export function generateAudio({ apiKey, voiceId, text, outputPath, modelId = 'eleven_multilingual_v2' }) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
       text,
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: VOICE_SETTINGS,
+      model_id: modelId,
+      voice_settings: voiceSettingsForModel(modelId),
     });
 
     const req = https.request({
@@ -137,7 +145,7 @@ export function generateAudio({ apiKey, voiceId, text, outputPath }) {
       }
       const file = fs.createWriteStream(outputPath);
       res.pipe(file);
-      file.on('finish', () => { file.close(); resolve({ outputPath, characters: text.length }); });
+      file.on('finish', () => { file.close(); resolve({ outputPath, characters: text.length, modelId }); });
       file.on('error',  reject);
     });
 

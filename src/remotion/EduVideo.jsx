@@ -20,6 +20,12 @@ import { ProgressBar } from './components/ProgressBar';
 import { KaraokeCaptions } from './components/KaraokeCaptions';
 import { BackgroundMusic, buildVoiceRanges } from './components/BackgroundMusic';
 import { sceneDurationFrames } from './utils/timeline';
+import { loadDevanagariFont, FONT_STACK } from './utils/fonts.js';
+import {
+  TitleScene, IconRowScene, BarChartScene, ComparisonScene, CodeScene, OutroScene,
+} from './scenes/aipadhai/index.jsx';
+
+loadDevanagariFont();
 
 const SCENE_COMPONENTS = {
   hook: HookScene,
@@ -30,6 +36,13 @@ const SCENE_COMPONENTS = {
   summary: SummaryScene,
   section: SectionScene,
   demo: DemoScene,
+  // AI Padhai branded pack (CCA-F series design system)
+  aipTitle: TitleScene,
+  aipIconRows: IconRowScene,
+  aipBarChart: BarChartScene,
+  aipComparison: ComparisonScene,
+  aipCode: CodeScene,
+  aipOutro: OutroScene,
 };
 
 function audioSrc(file) {
@@ -57,8 +70,14 @@ export const EduVideo = ({ topic, scenes, accentColor = '#7c5cfc', hashtag }) =>
   const voiceRanges = buildVoiceRanges(scenes, fps);
   const tag = hashtag || `#${(topic || 'Learn').replace(/\s+/g, '')}`;
 
+  // Which scene is on screen now — hide floating topic tag on demos (chrome already has titles)
+  const activeScene = timeline.find(
+    (s) => frame >= s.startFrame && frame < s.startFrame + s.durationFrames,
+  ) || timeline[0];
+  const hideTopicTag = activeScene?.type === 'demo' || activeScene?.hideTopicTag;
+
   return (
-    <AbsoluteFill style={{ backgroundColor: '#000', fontFamily: 'system-ui, sans-serif' }}>
+    <AbsoluteFill style={{ backgroundColor: '#000', fontFamily: FONT_STACK }}>
 
       <BackgroundMusic voiceRanges={voiceRanges} />
 
@@ -87,7 +106,11 @@ export const EduVideo = ({ topic, scenes, accentColor = '#7c5cfc', hashtag }) =>
               wordTimings={scene.wordTimings}
               narration={scene.narration}
               accentColor={accentColor}
-              hidden={scene.type === 'summary'}
+              hidden={
+                scene.type === 'summary'
+                || scene.type === 'demo'
+                || scene.hideCaptions
+              }
             />
           </Sequence>
         );
@@ -95,18 +118,21 @@ export const EduVideo = ({ topic, scenes, accentColor = '#7c5cfc', hashtag }) =>
 
       <ProgressBar progress={progress} accentColor={accentColor} />
 
-      <AbsoluteFill style={{ pointerEvents: 'none' }}>
-        <div style={{
-          position: 'absolute',
-          top: 48,
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'center',
-        }}>
-          <TopicTag topic={topic} accentColor={accentColor} />
-        </div>
-      </AbsoluteFill>
+      {!hideTopicTag && (
+        <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <div style={{
+            position: 'absolute',
+            top: 36,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            zIndex: 20,
+          }}>
+            <TopicTag topic={topic} accentColor={accentColor} />
+          </div>
+        </AbsoluteFill>
+      )}
 
     </AbsoluteFill>
   );
@@ -120,15 +146,19 @@ const TopicTag = ({ topic, accentColor }) => {
   return (
     <div style={{
       opacity,
-      background: 'rgba(0,0,0,0.6)',
+      background: 'rgba(0,0,0,0.72)',
       border: `1px solid ${accentColor}40`,
       borderRadius: 40,
-      padding: '10px 28px',
-      fontSize: 28,
-      color: 'rgba(255,255,255,0.7)',
+      padding: '8px 22px',
+      fontSize: 22,
+      color: 'rgba(255,255,255,0.85)',
       fontWeight: 600,
-      letterSpacing: 1,
+      letterSpacing: 0.5,
       backdropFilter: 'blur(10px)',
+      maxWidth: '70%',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
     }}>
       {topic}
     </div>

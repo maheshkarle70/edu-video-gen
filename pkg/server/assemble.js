@@ -1,6 +1,7 @@
 // Agent 3 — assemble production brief + media into Remotion preview props
 import { enrichHtmlMedia } from './htmlMedia.js';
 import { enrichVideoMedia } from './transcode.js';
+import { estimateSpeechDurationSec } from './language.js';
 
 export function briefToScript(brief, sectionMedia = {}) {
   const sections = brief.sections || [];
@@ -8,18 +9,20 @@ export function briefToScript(brief, sectionMedia = {}) {
   const scenes = [];
 
   const hook = brief.hook || {};
+  const hookNarration = hook.narration || '';
   scenes.push({
     id: 1,
     type: 'hook',
     hookStat: hook.hookStat || hook.title,
     title: hook.title,
     body: hook.body,
-    narration: hook.narration,
+    narration: hookNarration,
     emoji: hook.emoji || '🎬',
     keyword: hook.keyword,
     bgColor: hook.bgColor || '#080a12',
     brollTag: hook.brollTag || 'tech',
-    durationSec: hook.durationSec || estimateFromText(hook.narration, 50),
+    // Cap hook so silent preview + duration estimates jump to demos quickly
+    durationSec: Math.min(hook.durationSec || estimateFromText(hookNarration, 18), 20),
   });
 
   sections.forEach((sec, i) => {
@@ -43,11 +46,13 @@ export function briefToScript(brief, sectionMedia = {}) {
 
     if (hasMedia) {
       const enriched = enrichVideoMedia(enrichHtmlMedia(media));
+      // Prefer disk path for Remotion staging; keep url for browser preview player.
+      const file = enriched.filePath || enriched.url || enriched.file;
       scene.media = {
         type: enriched.type,
         url: enriched.url,
         filePath: enriched.filePath,
-        file: enriched.url || enriched.filePath,
+        file,
         caption: enriched.caption || sec.mediaBrief?.whatToCapture || '',
         generated: !!enriched.generated,
         htmlContent: enriched.htmlContent,
@@ -85,8 +90,12 @@ export function briefToScript(brief, sectionMedia = {}) {
 }
 
 function estimateFromText(text = '', fallback = 10) {
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(Math.ceil(words / 2.5), fallback > 10 ? 8 : fallback, 5);
+  // Language-aware: Devanagari (Hindi/Marathi) needs slower silent-preview pacing
+  const language = /[\u0900-\u097F]/.test(text) ? 'Marathi' : 'English';
+  return Math.max(
+    estimateSpeechDurationSec(text, language, { minSec: 5 }),
+    fallback > 10 ? 8 : fallback,
+  );
 }
 
 export function calcPreviewFrames(scenes, fps = 30) {

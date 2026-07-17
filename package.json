@@ -8,14 +8,15 @@
     "preview": "npx remotion studio src/remotion/index.jsx"
   },
   "dependencies": {
-    "remotion": "4.0.475",
     "@remotion/bundler": "4.0.475",
-    "@remotion/renderer": "4.0.475",
+    "@remotion/fonts": "^4.0.475",
     "@remotion/media-utils": "4.0.475",
-    "express": "^4.18.2",
+    "@remotion/renderer": "4.0.475",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "remotion": "4.0.475"
   },
   "remotion": {
     "entryPoint": "src/remotion/index.jsx"

@@ -1,4 +1,5 @@
 // server/claude.js
+import { languagePromptRules, normalizeLanguage } from './language.js';
 
 const STYLES = {
   engaging:     'energetic, enthusiastic teacher for 15–25 year olds — make it exciting',
@@ -15,7 +16,14 @@ async function callClaude({ apiKey, system, userContent, maxTokens = 4096 }) {
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
-      system,
+      // Cache stable system instructions (reads ~90% cheaper on repeat calls)
+      system: [
+        {
+          type: 'text',
+          text: system,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [{ role: 'user', content: userContent }],
     }),
   });
@@ -27,9 +35,14 @@ async function callClaude({ apiKey, system, userContent, maxTokens = 4096 }) {
   const raw = data.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '';
   const parsed = parseClaudeJson(raw, stopReason);
 
-  const usage = data.usage
-    ? { inputTokens: data.usage.input_tokens || 0, outputTokens: data.usage.output_tokens || 0, model }
-    : { inputTokens: 0, outputTokens: 0, model };
+  const u = data.usage || {};
+  const usage = {
+    inputTokens: u.input_tokens || 0,
+    outputTokens: u.output_tokens || 0,
+    cacheCreationTokens: u.cache_creation_input_tokens || 0,
+    cacheReadTokens: u.cache_read_input_tokens || 0,
+    model,
+  };
 
   return { data: parsed, usage, stopReason };
 }
@@ -41,7 +54,11 @@ function parseClaudeJson(raw, stopReason) {
     return JSON.parse(raw);
   } catch {
     if (stopReason === 'max_tokens') {
-      throw new Error('Claude response was truncated (too many subtopics). Retry — if it persists, use a shorter topic title.');
+      const err = new Error(
+        'Claude response was truncated (output too long). Retry — or select fewer topics (try 5–7).',
+      );
+      err.code = 'TRUNCATED';
+      throw err;
     }
     const start = raw.indexOf('{');
     const end = raw.lastIndexOf('}');
@@ -56,6 +73,7 @@ function parseClaudeJson(raw, stopReason) {
 
 /** Step 1 — suggest subtopics for a long YouTube video */
 export async function generateOutline({ topic, style = 'professional', language = 'English', apiKey }) {
+  const lang = normalizeLanguage(language);
   const { data, usage } = await callClaude({
     apiKey,
     maxTokens: 4096,
@@ -63,7 +81,8 @@ export async function generateOutline({ topic, style = 'professional', language 
     userContent: `Plan a long-form YouTube tutorial (8-10 minutes) about: "${topic}"
 
 Style: ${STYLES[style] || STYLES.professional}
-Language: ${language}
+Language: ${lang}
+${languagePromptRules(lang)}
 
 Return EXACTLY this JSON:
 {
@@ -118,100 +137,157 @@ export function enrichSubtopicMedia(subtopic) {
 export async function generateBrief({
   topic, selectedSubtopics, style = 'professional', language = 'English', apiKey,
 }) {
-  const sectionsList = selectedSubtopics.map((s, i) =>
-    `${i + 1}. [${s.id}] ${s.title} — ${s.description || ''}${s.whereToGo ? ` | Go: ${s.whereToGo}` : ''}`,
-  ).join('\n');
-
   const sectionCount = selectedSubtopics.length;
+  const lang = normalizeLanguage(language);
 
-  const { data, usage } = await callClaude({
-    apiKey,
-    maxTokens: 8192,
-    system: 'You are an expert YouTube tutorial producer. Return ONLY valid JSON — no markdown, no backticks.',
-    userContent: `Create a production brief for a long-form tutorial video about: "${topic}"
+  async function runBrief(compact) {
+    const sectionsList = selectedSubtopics.map((s, i) =>
+      `${i + 1}. [${s.id}] ${s.title}${compact ? '' : ` — ${(s.description || '').slice(0, 80)}`}${(!compact && s.whereToGo) ? ` | Go: ${s.whereToGo}` : ''}`,
+    ).join('\n');
+
+    const density = compact
+      ? `COMPACT (must fit one response):
+- narration per section: 40-55 words MAX
+- captureSteps: exactly 2 short steps
+- samplePrompts: exactly 1 short prompt
+- Omit "visual" and keep animationFallback.prompt ≤ 12 words
+- Keep ALL strings short — no essays`
+      : `Length targets:
+- narration per section: 55-75 words (spoken VO)
+- captureSteps: 2-3 short steps
+- samplePrompts: 1-2 short prompts
+- Prefer brevity — JSON must finish in one response`;
+
+    return callClaude({
+      apiKey,
+      maxTokens: 16384,
+      system: 'You are an expert YouTube tutorial producer. Return ONLY valid compact JSON — no markdown, no backticks. Keep every string short so the JSON completes.',
+      userContent: `Create a production brief for: "${topic}"
 
 Style: ${STYLES[style] || STYLES.professional}
-Language: ${language}
+Language: ${lang}
+${languagePromptRules(lang)}
 
-Sections to produce (in order):
+Sections (${sectionCount}):
 ${sectionsList}
 
-Return EXACTLY this JSON:
+${density}
+
+Return EXACTLY this JSON shape:
 {
   "topic": "Video title",
   "videoMode": "long",
-  "accentColor": "#hexcolor fitting topic",
-  "hashtag": "#TopicHashtag",
+  "accentColor": "#hex",
+  "hashtag": "#Tag",
   "hook": {
-    "hookStat": "Bold promise or question for the full tutorial",
+    "hookStat": "Bold promise (max 12 words)",
     "title": "What you'll learn",
-    "body": "2 short sentences previewing all ${sectionCount} sections",
-    "narration": "70-90 words spoken intro previewing each section briefly",
+    "body": "1 short sentence",
+    "narration": "28-40 words MAX punchy intro",
     "emoji": "🎬",
     "keyword": "KEY PHRASE",
     "bgColor": "#080a12",
-    "durationSec": 45
+    "durationSec": 18
   },
   "sections": [
     {
       "id": "st1",
-      "subtopic": "matches input subtopic title",
+      "subtopic": "input title",
       "title": "Section title",
-      "onScreenText": "MAX 12 words shown on screen",
+      "onScreenText": "MAX 12 words",
       "body": "same as onScreenText",
-      "narration": "80-110 words — natural speech teaching this section. Reference what user will see if media is uploaded.",
+      "narration": "spoken VO — follow length targets above",
       "keyword": "2-4 WORDS",
       "emoji": "📌",
       "bgColor": "#0a0f1a",
-      "durationSec": 60,
+      "durationSec": 55,
       "mediaBrief": {
-        "type": "screenshot|video|either",
-        "whereToGo": "Exact URL or app path",
-        "whatToCapture": "What must appear in screenshot or video",
-        "captureSteps": ["Step 1...", "Step 2...", "Step 3..."],
+        "type": "screenshot",
+        "whereToGo": "URL or app path",
+        "whatToCapture": "What must appear on screen",
+        "captureSteps": ["Step 1", "Step 2"],
         "status": "pending"
       },
-      "samplePrompts": [
-        "Prompt user can paste into Claude to practice this step",
-        "Another helpful prompt for this section"
-      ],
+      "samplePrompts": ["One practical practice prompt"],
       "animationFallback": {
         "useIfNoUpload": true,
-        "prompt": "Describe animated mockup if user skips upload",
+        "prompt": "Short mockup description",
         "remotionScene": "demo-mockup"
-      },
-      "visual": { "type": "process", "steps": ["2-4 labels"], "caption": "optional" }
+      }
     }
   ],
   "summary": {
     "title": "What You Learned",
     "body": "Three short recap sentences",
-    "narration": "70-90 words recap + follow/subscribe",
+    "narration": "55-75 words recap + subscribe",
     "keyword": "KEY TAKEAWAY",
     "cta": "Follow & Subscribe for More",
     "emoji": "💡",
     "bgColor": "#0a0a1a",
-    "durationSec": 45
+    "durationSec": 40
   }
 }
 
 Rules:
-- sections array: exactly ${sectionCount} items, ids must match input [st1], [st2], etc. in order
-- EVERY section needs mediaBrief (3 captureSteps), samplePrompts (2 items), animationFallback
-- mediaBrief.type: screenshot for static UI, video for actions/output, either when both work
-- onScreenText/body: MAX 12 words — video shows media, not text walls
-- narration = spoken voiceover only, no bullet points
-- Include visual diagram only as fallback when no user media expected
-- samplePrompts = practical prompts user can use in Claude/ChatGPT to learn or generate content`,
-  });
+- sections: exactly ${sectionCount} items; ids match input [st1], [st2], … in order
+- EVERY section needs mediaBrief + samplePrompts + animationFallback
+- onScreenText/body: MAX 12 words
+- narration = spoken voiceover only
+- HOOK narration 28–40 words so demos start fast
+- mediaBrief/captureSteps/samplePrompts may stay English; spoken + on-screen teaching copy follow Language rules
+- Close the JSON fully — never stop mid-string`,
+    });
+  }
+
+  let data;
+  let usage = { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
+  let stopReason;
+  try {
+    const first = await runBrief(sectionCount >= 7);
+    data = first.data;
+    usage = first.usage || usage;
+    stopReason = first.stopReason;
+    if (stopReason === 'max_tokens' || (data.sections || []).length < sectionCount) {
+      throw Object.assign(new Error('Brief incomplete or truncated'), { code: 'TRUNCATED' });
+    }
+  } catch (e) {
+    if (e.code === 'TRUNCATED' || /truncated|incomplete/i.test(e.message)) {
+      console.warn(`[Brief] Truncated/incomplete with ${sectionCount} sections — retrying compact`);
+      const second = await runBrief(true);
+      data = second.data;
+      const a = usage || {};
+      const b = second.usage || {};
+      usage = {
+        inputTokens: (a.inputTokens || 0) + (b.inputTokens || 0),
+        outputTokens: (a.outputTokens || 0) + (b.outputTokens || 0),
+        cacheCreationTokens: (a.cacheCreationTokens || 0) + (b.cacheCreationTokens || 0),
+        cacheReadTokens: (a.cacheReadTokens || 0) + (b.cacheReadTokens || 0),
+        model: b.model || a.model,
+      };
+      stopReason = second.stopReason;
+    } else {
+      throw e;
+    }
+  }
 
   data.videoMode = 'long';
   data.sections = (data.sections || []).map((sec, i) => {
     const input = selectedSubtopics[i];
     const enriched = input ? enrichSubtopicMedia(input) : {};
+    const prompts = Array.isArray(sec.samplePrompts) ? sec.samplePrompts.filter(Boolean) : [];
     return {
       ...sec,
       id: input?.id || sec.id,
+      samplePrompts: prompts.length ? prompts.slice(0, 2) : [
+        `Explain "${input?.title || sec.title}" in simple steps I can practice.`,
+      ],
+      animationFallback: {
+        useIfNoUpload: true,
+        remotionScene: 'demo-mockup',
+        prompt: sec.animationFallback?.prompt
+          || `Educational infographic for: ${input?.title || sec.title}`,
+        ...(sec.animationFallback || {}),
+      },
       mediaBrief: {
         ...enriched,
         ...(sec.mediaBrief || {}),
@@ -219,12 +295,21 @@ Rules:
         whereToGo: sec.mediaBrief?.whereToGo || enriched.whereToGo,
         whatToCapture: sec.mediaBrief?.whatToCapture || enriched.whatToCapture,
         captureSteps: sec.mediaBrief?.captureSteps?.length >= 2
-          ? sec.mediaBrief.captureSteps
+          ? sec.mediaBrief.captureSteps.slice(0, 3)
           : enriched.captureSteps,
         status: 'pending',
       },
     };
   });
+
+  if (!data.sections?.length) {
+    throw new Error('Brief returned no sections — retry with fewer topics.');
+  }
+  if (data.sections.length < sectionCount) {
+    throw new Error(
+      `Brief only returned ${data.sections.length}/${sectionCount} sections. Select fewer topics (try 5–7) and retry.`,
+    );
+  }
 
   return { brief: data, usage };
 }
@@ -239,6 +324,7 @@ export async function generateLongScript({
 
   const sectionCount = selectedSubtopics.length;
   const mediaHints = buildMediaHintsInline(selectedSubtopics, sectionMedia);
+  const lang = normalizeLanguage(language);
 
   const { data, usage } = await callClaude({
     apiKey,
@@ -247,7 +333,8 @@ export async function generateLongScript({
     userContent: `Write a complete long-form YouTube video script about: "${topic}"
 
 Style: ${STYLES[style] || STYLES.professional}
-Language: ${language}
+Language: ${lang}
+${languagePromptRules(lang)}
 
 The video has 1 hook + ${sectionCount} sections + 1 summary. Sections to cover (in order):
 ${sectionsList}
@@ -265,11 +352,11 @@ Return EXACTLY this JSON:
       "hookStat": "Provocative question or bold promise for the full tutorial",
       "title": "What you'll learn today",
       "body": "2-3 sentences previewing the ${sectionCount} topics covered.",
-      "narration": "80-100 words. Warm intro — preview all sections briefly. Conversational.",
+      "narration": "28-40 words MAX. Punchy intro only — jump to content fast.",
       "emoji": "🎬",
       "bgColor": "#080a12",
       "brollTag": "tech",
-      "durationSec": 50
+      "durationSec": 18
     },
     {
       "id": 2,
@@ -329,6 +416,7 @@ function buildMediaHintsInline(selectedSubtopics, sectionMedia) {
 }
 
 export async function generateScript({ topic, style = 'engaging', language = 'English', apiKey }) {
+  const lang = normalizeLanguage(language);
   const { data: script, usage } = await callClaude({
     apiKey,
     maxTokens: 4096,
@@ -336,7 +424,8 @@ export async function generateScript({ topic, style = 'engaging', language = 'En
     userContent: `Create a complete educational video script about: "${topic}"
 
 Style: ${STYLES[style] || STYLES.engaging}
-Language: ${language}
+Language: ${lang}
+${languagePromptRules(lang)}
 
 Return EXACTLY this JSON (no extra keys, no comments):
 {
@@ -416,4 +505,71 @@ Rules:
   });
 
   return { script, usage };
+}
+
+/** After render — YouTube / social publish metadata (title, description, tags) */
+export async function generatePublishMetadata({
+  topic,
+  language = 'English',
+  videoMode = 'short',
+  hashtag = '',
+  scenes = [],
+  durationSec = 0,
+  apiKey,
+}) {
+  const lang = normalizeLanguage(language);
+  const isLong = videoMode === 'long';
+  const sceneSummary = (scenes || [])
+    .slice(0, 16)
+    .map((s, i) => {
+      const mins = Math.floor((scenes.slice(0, i).reduce((a, x) => a + (x.durationSec || 6), 0)) / 60);
+      const secs = Math.round((scenes.slice(0, i).reduce((a, x) => a + (x.durationSec || 6), 0)) % 60);
+      const ts = `${mins}:${String(secs).padStart(2, '0')}`;
+      return `- [${ts}] ${s.type || 'scene'}: ${s.title || ''} — ${(s.narration || s.body || '').slice(0, 120)}`;
+    })
+    .join('\n');
+
+  const { data, usage } = await callClaude({
+    apiKey,
+    maxTokens: 2048,
+    system: 'You are an expert YouTube SEO copywriter for educational channels. Return ONLY valid JSON — no markdown, no backticks.',
+    userContent: `Write publish metadata for this educational video.
+
+Topic: "${topic}"
+Mode: ${isLong ? 'long YouTube tutorial' : 'YouTube Short / Reels (~45-60s)'}
+Language for title & description: ${lang}
+${languagePromptRules(lang)}
+Hashtag from script: ${hashtag || '(none)'}
+Approx duration: ${Math.round(durationSec || 0)} seconds
+
+Scene outline:
+${sceneSummary || '(not provided)'}
+
+Return EXACTLY this JSON:
+{
+  "title": "Primary upload title (max 70 chars, curiosity + clarity, no clickbait spam)",
+  "titleOptions": ["Alt title 1", "Alt title 2", "Alt title 3"],
+  "description": "Full YouTube description. 2-4 short paragraphs. Include what viewers will learn. End with a soft CTA to like/subscribe. ${isLong ? 'After the paragraphs, add a Timestamps section with MM:SS lines from the scene outline.' : 'Keep it concise for Shorts.'}",
+  "tags": ["8-15 searchable tags", "mix broad + specific", "no # symbols"],
+  "hashtags": ["#Topic", "#Education", "#3to5 more"]
+}
+
+Rules:
+- Title must work on YouTube search; avoid ALL CAPS and excessive emoji
+- Description language must match ${lang}
+- Tags: lowercase where natural; include topic synonyms and format words (e.g. tutorial, explained)
+- hashtags: include # and CamelCase or TopicWords
+- Do NOT invent fake credentials, channel names, or links`,
+  });
+
+  return {
+    metadata: {
+      title: data.title || topic,
+      titleOptions: Array.isArray(data.titleOptions) ? data.titleOptions.slice(0, 5) : [],
+      description: data.description || '',
+      tags: Array.isArray(data.tags) ? data.tags.slice(0, 20) : [],
+      hashtags: Array.isArray(data.hashtags) ? data.hashtags.slice(0, 8) : [],
+    },
+    usage,
+  };
 }

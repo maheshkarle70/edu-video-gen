@@ -5,19 +5,26 @@ import fs              from 'fs';
 import path            from 'path';
 import { execSync, exec } from 'child_process';
 import { fileURLToPath }  from 'url';
-import { generateScript, generateOutline, generateLongScript, generateBrief, enrichSubtopicMedia } from './claude.js';
+import { generateScript, generateOutline, generateLongScript, generateBrief, generatePublishMetadata, enrichSubtopicMedia } from './claude.js';
 import { generateAudio, generateAudioWithTimestamps, searchVoices, getVoice } from './elevenlabs.js';
 import { estimateWordTimings } from './wordTimings.js';
 import { renderVideo }    from './render.js';
-import { recordVideoUsage, getUsageSummary } from './usage.js';
+import { recordVideoUsage, getUsageSummary, addClaudeCall, enrichClaudeUsage, recordStepUsage } from './usage.js';
 import { uploadMiddleware, saveUploadedFile, UPLOADS_DIR, newSessionId } from './upload.js';
 import { finalizeVideoUpload } from './transcode.js';
 import { MOCKUPS_DIR, generateSectionMockup, ensureMockupsForBrief } from './mockup.js';
 import { captureUrlScreenshot } from './captureUrl.js';
-import { mergeStoryboardMedia } from './media.js';
+import { mergeStoryboardMedia, enrichScriptMedia } from './media.js';
 import { briefToScript, calcPreviewFrames, capPreviewDurationSec } from './assemble.js';
 import { createJob, loadJob, patchJob, JOB_STATUS } from './jobs.js';
 import { ensurePreviewBundle } from './build-preview.js';
+import {
+  estimateSpeechDurationSec,
+  ttsModelForLanguage,
+  voicePreviewText,
+  voiceSearchHint,
+  normalizeLanguage,
+} from './language.js';
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const ROOT       = path.join(__dirname, '..');
@@ -92,8 +99,8 @@ const STATIC_VOICES = [
   { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold', desc: 'Strong, powerful' },
   { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli',   desc: 'Friendly female voice' },
   { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Gigi',   desc: 'Energetic female voice' },
-  { id: 'BTNeCNdXniCSbjEac5vd', name: 'Amit Gupta — Explosive', desc: 'Youthful, energetic delivery' },
-  { id: 'Sxk6njaoa7XLsAFT7WcN', name: 'Amit Gupta — Warm', desc: 'Sympathetic, empathetic tone' },
+  { id: 'BTNeCNdXniCSbjEac5vd', name: 'Amit Gupta — Explosive', desc: 'Youthful, energetic — strong for Hindi/Marathi' },
+  { id: 'Sxk6njaoa7XLsAFT7WcN', name: 'Amit Gupta — Warm', desc: 'Warm Indian tone — good for Marathi lessons' },
 ];
 
 app.get('/voices', (_req, res) => {
@@ -115,6 +122,16 @@ app.get('/voices/search', async (req, res) => {
   }
 });
 
+app.get('/voices/hints/language', (req, res) => {
+  const language = normalizeLanguage(req.query.language || 'English');
+  res.json({
+    language,
+    searchHint: voiceSearchHint(language),
+    ttsModel: ttsModelForLanguage(language),
+    previewText: voicePreviewText(language),
+  });
+});
+
 app.get('/voices/:voiceId', async (req, res) => {
   const apiKey = process.env.ELEVENLABS_API_KEY || req.headers['xi-api-key'] || '';
   if (!apiKey) return res.status(400).json({ error: 'No ElevenLabs API key' });
@@ -127,18 +144,23 @@ app.get('/voices/:voiceId', async (req, res) => {
   }
 });
 
-const VOICE_PREVIEW_TEXT = 'Hello! This is a quick preview of how this voice will sound in your educational video. Clear, engaging, and ready to teach.';
-
 app.post('/voices/preview', async (req, res) => {
   const apiKey = process.env.ELEVENLABS_API_KEY || req.body.elevenKey || '';
   const id = req.body.voiceId || process.env.ELEVENLABS_VOICE_ID;
+  const language = normalizeLanguage(req.body.language || 'English');
   if (!apiKey) return res.status(400).json({ error: 'No ElevenLabs API key' });
   if (!id) return res.status(400).json({ error: 'No voice selected' });
 
   const previewPath = path.join(OUTPUT_DIR, `preview_${id}.mp3`);
   try {
-    await generateAudio({ apiKey, voiceId: id, text: VOICE_PREVIEW_TEXT, outputPath: previewPath });
-    res.json({ audioUrl: `/output/preview_${id}.mp3` });
+    await generateAudio({
+      apiKey,
+      voiceId: id,
+      text: voicePreviewText(language),
+      outputPath: previewPath,
+      modelId: ttsModelForLanguage(language),
+    });
+    res.json({ audioUrl: `/output/preview_${id}.mp3`, language, ttsModel: ttsModelForLanguage(language) });
   } catch (e) {
     console.error('[Voices] Preview failed:', e.message);
     res.status(502).json({ error: e.message });
@@ -181,6 +203,34 @@ app.post('/upload', (req, res) => {
   });
 });
 
+// ── /metadata  (YouTube / social title, description, tags) ───
+app.post('/metadata', async (req, res) => {
+  const {
+    topic, language, videoMode, hashtag, scenes, durationSec, claudeKey,
+  } = req.body;
+  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || claudeKey || '';
+
+  if (!topic?.trim()) return res.status(400).json({ error: 'Provide a topic' });
+  if (!ANTHROPIC_KEY) return res.status(400).json({ error: 'No Anthropic API key — add ANTHROPIC_API_KEY to .env' });
+
+  try {
+    const { metadata, usage } = await generatePublishMetadata({
+      topic: topic.trim(),
+      language: language || 'English',
+      videoMode: videoMode || 'short',
+      hashtag: hashtag || '',
+      scenes: Array.isArray(scenes) ? scenes : [],
+      durationSec: Number(durationSec) || 0,
+      apiKey: ANTHROPIC_KEY,
+    });
+    const enriched = recordStepUsage({ step: 'metadata', topic: topic.trim(), claude: usage });
+    res.json({ ...metadata, usage: enriched });
+  } catch (e) {
+    console.error('[Metadata]', e);
+    res.status(502).json({ error: e.message });
+  }
+});
+
 // ── /outline  (suggest subtopics for long YouTube videos) ─────
 app.post('/outline', async (req, res) => {
   const { topic, style, language, claudeKey } = req.body;
@@ -196,7 +246,8 @@ app.post('/outline', async (req, res) => {
       language: language || 'English',
       apiKey: ANTHROPIC_KEY,
     });
-    res.json({ ...outline, subtopics: (outline.subtopics || []).map(enrichSubtopicMedia), usage });
+    const enriched = recordStepUsage({ step: 'outline', topic: topic.trim(), claude: usage });
+    res.json({ ...outline, subtopics: (outline.subtopics || []).map(enrichSubtopicMedia), usage: enriched });
   } catch (e) {
     console.error('[Outline]', e);
     res.status(502).json({ error: e.message });
@@ -227,6 +278,7 @@ app.post('/brief', async (req, res) => {
     if (!job) {
       job = createJob({ topic, style, language, videoMode: 'long' });
     }
+    const enriched = recordStepUsage({ step: 'brief', topic: topic.trim(), claude: usage });
     patchJob(job.id, {
       status: JOB_STATUS.BRIEF_READY,
       topic,
@@ -234,10 +286,10 @@ app.post('/brief', async (req, res) => {
       language,
       selectedSubtopics,
       brief,
-      briefUsage: usage,
+      briefUsage: enriched,
     });
 
-    res.json({ jobId: job.id, brief, usage });
+    res.json({ jobId: job.id, brief, usage: enriched });
   } catch (e) {
     console.error('[Brief]', e);
     res.status(502).json({ error: e.message });
@@ -276,6 +328,13 @@ app.post('/mockup', async (req, res) => {
 
   try {
     const mockup = await generateSectionMockup({ section, apiKey: ANTHROPIC_KEY, jobId, force: !!force });
+    if (mockup.usage) {
+      mockup.usage = recordStepUsage({
+        step: 'mockup',
+        topic: section.title || section.id,
+        claude: mockup.usage,
+      });
+    }
     res.json(mockup);
   } catch (e) {
     console.error('[Mockup]', e);
@@ -284,6 +343,7 @@ app.post('/mockup', async (req, res) => {
 });
 
 // ── /assemble  (Agent 3 — merge brief + media → preview props) ──
+// Streams SSE progress when generating AI mockups so the UI isn't "stuck".
 app.post('/assemble', async (req, res) => {
   const {
     brief, sectionMedia = {}, format, accentColor, jobId,
@@ -292,6 +352,19 @@ app.post('/assemble', async (req, res) => {
 
   if (!brief?.sections?.length) return res.status(400).json({ error: 'Provide a production brief' });
 
+  const stream = !!useMockups;
+  const send = (event, data) => {
+    if (!stream) return;
+    try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch {}
+  };
+
+  if (stream) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+  }
+
   try {
     let mergedMedia = { ...sectionMedia };
     let mockupUsage = null;
@@ -299,13 +372,24 @@ app.post('/assemble', async (req, res) => {
     if (useMockups) {
       const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || claudeKey || '';
       if (!ANTHROPIC_KEY) {
-        return res.status(400).json({ error: 'AI mockups need ANTHROPIC_API_KEY in .env' });
+        const err = { error: 'AI mockups need ANTHROPIC_API_KEY in .env' };
+        if (stream) { send('error', err); return res.end(); }
+        return res.status(400).json(err);
       }
+      send('progress', { msg: 'Starting AI mockups…', pct: 2 });
       const result = await ensureMockupsForBrief({
-        brief, sectionMedia: mergedMedia, apiKey: ANTHROPIC_KEY, jobId,
+        brief,
+        sectionMedia: mergedMedia,
+        apiKey: ANTHROPIC_KEY,
+        jobId,
+        onProgress: (p) => send('progress', p),
       });
       mergedMedia = result.sectionMedia;
-      mockupUsage = result.usage;
+      mockupUsage = enrichClaudeUsage(addClaudeCall({}, result.usage));
+      if (mockupUsage.totalTokens) {
+        recordStepUsage({ step: 'mockups', topic: brief.topic || topic, claude: mockupUsage });
+      }
+      send('progress', { msg: 'Assembling preview scenes…', pct: 92 });
     }
 
     const script = briefToScript(brief, mergedMedia);
@@ -339,9 +423,18 @@ app.post('/assemble', async (req, res) => {
       });
     }
 
-    res.json({ script, previewProps, previewMeta, sectionMedia: mergedMedia, mockupUsage });
+    const payload = { script, previewProps, previewMeta, sectionMedia: mergedMedia, mockupUsage };
+    if (stream) {
+      send('done', payload);
+      return res.end();
+    }
+    res.json(payload);
   } catch (e) {
     console.error('[Assemble]', e);
+    if (stream) {
+      send('error', { error: e.message });
+      return res.end();
+    }
     res.status(502).json({ error: e.message });
   }
 });
@@ -361,6 +454,7 @@ app.post('/generate', async (req, res) => {
   const {
     topic, style, language, accentColor, claudeKey, elevenKey, voiceId, format,
     script: prebuilt, videoMode, selectedSubtopics, sectionMedia, storyboardSessionId,
+    jobId: pipelineJobId, priorClaudeUsage,
   } = req.body;
 
   const ANTHROPIC_KEY  = process.env.ANTHROPIC_API_KEY  || claudeKey  || '';
@@ -372,8 +466,12 @@ app.post('/generate', async (req, res) => {
   if (!prebuilt && !topic) return res.status(400).json({ error: 'Provide topic or script' });
   if (!prebuilt && !ANTHROPIC_KEY) return res.status(400).json({ error: 'No Anthropic API key — add ANTHROPIC_API_KEY to .env' });
   if (!prebuilt && isLong) {
-    if (!selectedSubtopics?.length) return res.status(400).json({ error: 'Select 1 topic for a long video (testing mode)' });
-    if (selectedSubtopics.length > 1) return res.status(400).json({ error: 'Testing mode: select only 1 topic' });
+    if (!selectedSubtopics?.length) {
+      return res.status(400).json({ error: 'Select at least 1 topic for a long video' });
+    }
+    if (selectedSubtopics.length > 10) {
+      return res.status(400).json({ error: 'Select at most 10 topics for a long video' });
+    }
   }
 
   // SSE
@@ -388,9 +486,28 @@ app.post('/generate', async (req, res) => {
 
   try {
     const jobId   = Date.now().toString();
+    let claudeAcc = {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      requests: 0,
+      model: null,
+    };
+    // Prior steps (outline/brief/mockups) already counted in lifetime via recordStepUsage.
+    // Keep them only for "this video" display totals.
+    if (priorClaudeUsage) claudeAcc = addClaudeCall(claudeAcc, priorClaudeUsage);
     const usageJob = {
-      claude: { inputTokens: 0, outputTokens: 0, model: null },
+      claude: claudeAcc,
       elevenlabs: { characters: 0, requests: 0 },
+      claudeDelta: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+        requests: 0,
+        model: null,
+      },
     };
 
     // 1 — Script
@@ -405,15 +522,34 @@ app.post('/generate', async (req, res) => {
         })
         : await generateScript({ topic, style, language, apiKey: ANTHROPIC_KEY });
       script = result.script;
-      usageJob.claude = result.usage || usageJob.claude;
+      usageJob.claude = addClaudeCall(usageJob.claude, result.usage);
+      usageJob.claudeDelta = addClaudeCall(usageJob.claudeDelta, result.usage);
       if (isLong && sectionMedia) {
         script = mergeStoryboardMedia(script, selectedSubtopics, sectionMedia);
       }
       send('script', script);
       send('progress', { step: 1, pct: 20, msg: `✅ Script ready — ${script.scenes.length} scenes` });
     } else {
+      // Prebuilt (preview approve) — re-attach/enrich AI mockups so final render keeps HTML
+      if (isLong && sectionMedia && Object.keys(sectionMedia).length) {
+        script = mergeStoryboardMedia(script, selectedSubtopics || [], sectionMedia);
+      }
+      script = enrichScriptMedia(script);
       send('script', script);
       send('progress', { step: 1, pct: 20, msg: `✅ Using provided script — ${script.scenes.length} scenes` });
+    }
+
+    // Keep long-form hooks short so demo media appears by ~15–20s (even for older briefs)
+    if (isLong && script?.scenes?.length) {
+      script.scenes = script.scenes.map((sc) => {
+        if (sc.type !== 'hook') return sc;
+        const trimmed = trimHookNarration(sc.narration || sc.body || '');
+        return {
+          ...sc,
+          narration: trimmed,
+          durationSec: Math.min(sc.durationSec || 45, 20),
+        };
+      });
     }
 
     // 2 — Audio
@@ -421,8 +557,9 @@ app.post('/generate', async (req, res) => {
     fs.mkdirSync(audioDir, { recursive: true });
 
     if (ELEVEN_KEY) {
-      console.log(`[Audio] Using voice: ${VOICE_ID}`);
-      send('progress', { step: 2, pct: 25, msg: `🎙 Generating voiceover (voice ${VOICE_ID.slice(-6)})...` });
+      const TTS_MODEL = ttsModelForLanguage(language);
+      console.log(`[Audio] Using voice: ${VOICE_ID} · model: ${TTS_MODEL} · language: ${language || 'English'}`);
+      send('progress', { step: 2, pct: 25, msg: `🎙 Generating ${language || 'English'} voiceover (${TTS_MODEL})...` });
       const QUIZ_PAUSE_SEC = 2.5;
 
       for (let i = 0; i < script.scenes.length; i++) {
@@ -436,11 +573,15 @@ app.post('/generate', async (req, res) => {
             const pausePath = path.join(audioDir, `scene_${i}_pause.m4a`);
             const apM4a = path.join(audioDir, `scene_${i}.m4a`);
 
-            const qResult = await generateAudioWithTimestamps({ apiKey: ELEVEN_KEY, voiceId: VOICE_ID, text: before, outputPath: qPath });
+            const qResult = await generateAudioWithTimestamps({
+              apiKey: ELEVEN_KEY, voiceId: VOICE_ID, text: before, outputPath: qPath, modelId: TTS_MODEL,
+            });
             usageJob.elevenlabs.characters += qResult.characters || before.length;
             usageJob.elevenlabs.requests += 1;
             await generateSilence(pausePath, QUIZ_PAUSE_SEC);
-            const aResult = await generateAudioWithTimestamps({ apiKey: ELEVEN_KEY, voiceId: VOICE_ID, text: after, outputPath: aPath });
+            const aResult = await generateAudioWithTimestamps({
+              apiKey: ELEVEN_KEY, voiceId: VOICE_ID, text: after, outputPath: aPath, modelId: TTS_MODEL,
+            });
             usageJob.elevenlabs.characters += aResult.characters || after.length;
             usageJob.elevenlabs.requests += 1;
 
@@ -457,6 +598,7 @@ app.post('/generate', async (req, res) => {
           } else {
             const result = await generateAudioWithTimestamps({
               apiKey: ELEVEN_KEY, voiceId: VOICE_ID, text: sc.narration || sc.body, outputPath: ap,
+              modelId: TTS_MODEL,
             });
             usageJob.elevenlabs.characters += result.characters || (sc.narration || sc.body || '').length;
             usageJob.elevenlabs.requests += 1;
@@ -475,7 +617,7 @@ app.post('/generate', async (req, res) => {
           }
         } catch (e) {
           console.warn(`[Audio] Scene ${i} failed:`, e.message);
-          script.scenes[i].durationSec = estimateDuration(sc.narration || sc.body);
+          script.scenes[i].durationSec = estimateDuration(sc.narration || sc.body, language);
           script.scenes[i].wordTimings = estimateWordTimings(sc.narration || sc.body, script.scenes[i].durationSec);
         }
         const pct = 25 + Math.round((i + 1) / script.scenes.length * 30);
@@ -484,7 +626,7 @@ app.post('/generate', async (req, res) => {
     } else {
       send('progress', { step: 2, pct: 55, msg: '🔇 No ElevenLabs key — rendering silent video (add ELEVENLABS_API_KEY to .env)' });
       script.scenes.forEach((sc) => {
-        sc.durationSec = estimateDuration(sc.narration || sc.body);
+        sc.durationSec = estimateDuration(sc.narration || sc.body, language);
         sc.wordTimings = estimateWordTimings(sc.narration || sc.body, sc.durationSec);
         if (sc.type === 'quiz') sc.answerRevealSec = sc.durationSec * 0.65;
         if (sc.type === 'demo' && sc.media?.type === 'video') {
@@ -529,7 +671,8 @@ app.post('/generate', async (req, res) => {
     const videoUsage = recordVideoUsage({
       jobId,
       topic: script.topic || topic,
-      claude: usageJob.claude,
+      claude: usageJob.claudeDelta, // only new tokens → lifetime
+      displayClaude: usageJob.claude, // full pipeline for UI
       elevenlabs: usageJob.elevenlabs,
     });
     const balances = await getUsageSummary({ anthropicKey: ANTHROPIC_KEY, elevenKey: ELEVEN_KEY });
@@ -575,8 +718,17 @@ function getMediaDuration(filePath) {
   } catch { return 5; }
 }
 
-function estimateDuration(text = '') {
-  return Math.max(Math.ceil(text.split(' ').length / 2.5), 4);
+function estimateDuration(text = '', language = 'English') {
+  // Fallback only (no-TTS mode / TTS failure). Hindi/Marathi TTS runs
+  // ~110–130 wpm ≈ 2 words/sec — English was tuned at ~2.5.
+  return estimateSpeechDurationSec(text, language, { minSec: 4 });
+}
+
+/** Long-form hooks must stay punchy so viewers reach demos quickly. */
+function trimHookNarration(text = '', maxWords = 40) {
+  const words = String(text).trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return words.join(' ');
+  return `${words.slice(0, maxWords).join(' ').replace(/[,:;–—-]+$/, '')}.`;
 }
 
 function generateSilence(outputPath, seconds) {

@@ -1,12 +1,21 @@
 import { useCallback, useState } from 'react';
-import { getRemotionEnvironment, Img, OffthreadVideo, Video, staticFile } from 'remotion';
+import { getRemotionEnvironment, Img, OffthreadVideo, Video, staticFile, useVideoConfig } from 'remotion';
 import { ScrollingHtmlFrame } from './ScrollingHtmlFrame';
 
-function mediaSrc(file) {
+function mediaSrc(file, { isRendering = false } = {}) {
   if (!file) return null;
   if (/^(https?:|data:)/.test(file)) return file;
+  if (file.startsWith('/Users/') || file.startsWith('/home/') || file.startsWith('/var/') || /^[A-Za-z]:\\/.test(file)) {
+    return null;
+  }
   if (typeof window !== 'undefined' && file.startsWith('/')) {
-    if (file.startsWith('/uploads/') || file.startsWith('/output/') || file.startsWith('/mockups/') || file.startsWith('/_media-cache/')) {
+    if (
+      file.startsWith('/uploads/')
+      || file.startsWith('/output/')
+      || file.startsWith('/mockups/')
+      || file.startsWith('/_media-cache/')
+    ) {
+      if (isRendering) return null;
       return `${window.location.origin}${file}`;
     }
     return null;
@@ -14,19 +23,11 @@ function mediaSrc(file) {
   return staticFile(file);
 }
 
-const mediaStyle = {
-  width: '100%',
-  minHeight: 400,
-  maxHeight: 520,
-  objectFit: 'contain',
-  display: 'block',
-  background: '#1a1a1a',
-};
-
-function VideoFallback({ message }) {
+function VideoFallback({ message, height }) {
   return (
     <div style={{
-      ...mediaStyle,
+      width: '100%',
+      height: height || 520,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -35,37 +36,53 @@ function VideoFallback({ message }) {
       padding: 24,
       textAlign: 'center',
       lineHeight: 1.5,
+      background: '#141820',
     }}>
       {message}
     </div>
   );
 }
 
-export function DemoMedia({ media }) {
-  const src = mediaSrc(media.file || media.url);
+export function DemoMedia({ media, maxHeight }) {
+  const { isPlayer, isRendering } = getRemotionEnvironment();
+  const { height: compH } = useVideoConfig();
+  const viewportH = Math.max(520, maxHeight || Math.round(compH * 0.72));
+  const src = mediaSrc(media.file || media.url, { isRendering });
   const [videoError, setVideoError] = useState(false);
   const onError = useCallback(() => setVideoError(true), []);
 
-  if (!src) {
-    return <VideoFallback message="No media file attached" />;
-  }
-
-  const { isPlayer } = getRemotionEnvironment();
+  const mediaStyle = {
+    width: '100%',
+    height: viewportH,
+    maxHeight: viewportH,
+    objectFit: 'contain',
+    display: 'block',
+    background: '#141820',
+  };
 
   if (media.type === 'html') {
+    if (!media.htmlContent && !src) {
+      return <VideoFallback message="HTML mockup missing — regenerate AI mockup" height={viewportH} />;
+    }
     return (
       <ScrollingHtmlFrame
         src={src}
         htmlContent={media.htmlContent}
         htmlStyles={media.htmlStyles}
+        maxHeight={viewportH}
       />
     );
+  }
+
+  if (!src) {
+    return <VideoFallback message="No media file attached" height={viewportH} />;
   }
 
   if (media.type === 'video') {
     if (videoError) {
       return (
         <VideoFallback
+          height={viewportH}
           message="Video could not play — re-upload as .mp4 or restart server (needs ffmpeg for .mov conversion)"
         />
       );
